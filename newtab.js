@@ -126,6 +126,16 @@ function setupEventListeners() {
         }
     });
 
+    // Backup & Restore
+    document.getElementById('export-btn').addEventListener('click', exportData);
+    document.getElementById('import-btn').addEventListener('click', () => {
+        document.getElementById('import-input').click();
+    });
+    document.getElementById('import-input').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) importData(file);
+    });
+
     // Event Delegation for dynamic elements
     sectionsContainer.addEventListener('click', (e) => {
         const target = e.target;
@@ -144,6 +154,43 @@ function setupEventListeners() {
             deleteLink(sIndex, lIndex);
         }
     });
+}
+
+function exportData() {
+    const data = JSON.stringify(sections, null, 2);
+    const blob = new Blob([data], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const date = new Date().toISOString().split('T')[0];
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `zentab-backup-${date}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+}
+
+function importData(file) {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        try {
+            const imported = JSON.parse(e.target.result);
+            if (Array.isArray(imported)) {
+                if (confirm('Importing will overwrite your current links. Continue?')) {
+                    sections = imported;
+                    saveData();
+                    renderSections();
+                    alert('Backup restored successfully!');
+                }
+            } else {
+                alert('Invalid backup file format.');
+            }
+        } catch (err) {
+            alert('Error parsing backup file.');
+        }
+    };
+    reader.readAsText(file);
 }
 
 // Modal Helpers
