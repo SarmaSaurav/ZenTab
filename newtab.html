@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZenTab</title>
+    <link rel="stylesheet" href="newtab.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600&display=swap" rel="stylesheet">
+</head>
+
+<body>
+    <div class="background-overlay"></div>
+
+    <main class="dashboard">
+        <header class="header">
+            <h1 class="time" id="clock">00:00</h1>
+            <p class="greeting" id="greeting">Good afternoon</p>
+        </header>
+
+        <section id="sections-container" class="sections-grid">
+            <!-- Sections will be rendered here -->
+        </section>
+
+        <div class="actions">
+            <button id="add-section-btn" class="btn btn-primary">Add Section</button>
+        </div>
+    </main>
+
+    <!-- Modals -->
+    <div id="section-modal" class="modal">
+        <div class="modal-content">
+            <h2>New Section</h2>
+            <input type="text" id="section-name" placeholder="Section Name">
+            <div class="modal-actions">
+                <button id="cancel-section-btn" class="btn btn-secondary">Cancel</button>
+                <button id="save-section-btn" class="btn btn-primary">Save</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="link-modal" class="modal">
+        <div class="modal-content">
+            <h2>Add Link</h2>
+            <input type="text" id="link-name" placeholder="Name">
+            <input type="url" id="link-url" placeholder="URL (https://)">
+            <input type="hidden" id="link-section-id">
+            <div class="modal-actions">
+                <button id="cancel-link-btn" class="btn btn-secondary">Cancel</button>
+                <button id="save-link-btn" class="btn btn-primary">Add Link</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="newtab.js"></script>
+</body>
+
+</html>
