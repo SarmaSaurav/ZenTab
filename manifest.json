@@ -1,8 +1,11 @@
 {
   "manifest_version": 3,
   "name": "ZenTab Dashboard",
-  "version": "1.0",
+  "short_name": "ZenTab",
+  "version": "1.2",
   "description": "A premium dashboard for your pinned links and sections.",
+  "author": "Saurav Sarma",
+  "offline_enabled": true,
   "permissions": [
     "storage"
   ],
@@ -10,8 +13,9 @@
     "newtab": "newtab.html"
   },
   "icons": {
+    "16": "icon64.png",
+    "32": "icon64.png",
     "48": "icon64.png",
     "128": "icon128.png"
-  },
-  "author": "Saurav Sarma"
+  }
 }
