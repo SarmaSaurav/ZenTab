@@ -35,8 +35,16 @@
     <!-- Modals -->
     <div id="section-modal" class="modal">
         <div class="modal-content">
-            <h2>New Section</h2>
+            <h2 id="section-modal-title">New Section</h2>
             <input type="text" id="section-name" placeholder="Section Name">
+            <div class="icon-picker-container">
+                <p>Select Icon:</p>
+                <div id="icon-picker" class="icon-picker">
+                    <!-- Icons will be injected here -->
+                </div>
+                <input type="hidden" id="section-icon" value="">
+            </div>
+            <input type="hidden" id="section-id-edit" value="">
             <div class="modal-actions">
                 <button id="cancel-section-btn" class="btn btn-secondary">Cancel</button>
                 <button id="save-section-btn" class="btn btn-primary">Save</button>

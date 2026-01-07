@@ -1,3 +1,14 @@
+// Icons dictionary (Emojis for simplicity and variety, can be replaced with SVGs if needed)
+const ICONS = [
+    '📁', '🔗', '⭐', '🛠️', '📝', '🎨', '🚀', '🧠', '💼', '🏠',
+    '📺', '🎮', '🎵', '📸', '🛒', '🍔', '✈️', '🌍', '❤️', '💡',
+    '🔍', '📱', '💻', '🔋', '📫'
+];
+
+function getRandomIcon() {
+    return ICONS[Math.floor(Math.random() * ICONS.length)];
+}
+
 // State management
 let sections = [];
 
@@ -9,12 +20,19 @@ const addSectionBtn = document.getElementById('add-section-btn');
 const saveSectionBtn = document.getElementById('save-section-btn');
 const saveLinkBtn = document.getElementById('save-link-btn');
 
+const sectionModalTitle = document.getElementById('section-modal-title');
+const sectionNameInput = document.getElementById('section-name');
+const sectionIconInput = document.getElementById('section-icon');
+const sectionIdEdit = document.getElementById('section-id-edit');
+const iconPicker = document.getElementById('icon-picker');
+
 // Initialize
 function init() {
     updateTime();
     setInterval(updateTime, 1000);
     loadData();
     setupEventListeners();
+    renderIconPicker();
 }
 
 // Time & Greeting
@@ -34,13 +52,26 @@ function updateTime() {
 function loadData() {
     if (typeof chrome !== 'undefined' && chrome.storage) {
         chrome.storage.sync.get(['sections'], (result) => {
-            sections = result.sections || [];
+            sections = (result.sections || []).map(s => ({
+                ...s,
+                icon: s.icon || getRandomIcon()
+            }));
             renderSections();
         });
     } else {
         // Fallback for local testing
         const saved = localStorage.getItem('zenTabSections');
         sections = saved ? JSON.parse(saved) : [];
+        // Migration: add icons to existing sections
+        let migrated = false;
+        sections = sections.map(s => {
+            if (!s.icon) {
+                s.icon = getRandomIcon();
+                migrated = true;
+            }
+            return s;
+        });
+        if (migrated) saveData();
         renderSections();
     }
 }
@@ -62,8 +93,14 @@ function renderSections() {
         sectionEl.className = 'section-card';
         sectionEl.innerHTML = `
             <div class="section-header">
-                <h2 class="section-title">${section.name}</h2>
-                <span class="delete-btn" data-action="delete-section" data-index="${index}">✕</span>
+                <div class="section-title-container">
+                    <span class="section-icon">${section.icon || '📁'}</span>
+                    <h2 class="section-title">${section.name}</h2>
+                </div>
+                <div class="header-actions">
+                    <span class="edit-btn" data-action="edit-section" data-index="${index}">✎</span>
+                    <span class="delete-btn" data-action="delete-section" data-index="${index}">✕</span>
+                </div>
             </div>
             <div class="links-list">
                 ${section.links.map((link, linkIndex) => `
@@ -84,24 +121,67 @@ function renderSections() {
     });
 }
 
+function renderIconPicker() {
+    iconPicker.innerHTML = ICONS.map(icon => `
+        <div class="icon-item" data-icon="${icon}">${icon}</div>
+    `).join('');
+
+    iconPicker.addEventListener('click', (e) => {
+        const target = e.target.closest('.icon-item');
+        if (target) {
+            document.querySelectorAll('.icon-item').forEach(el => el.classList.remove('selected'));
+            target.classList.add('selected');
+            sectionIconInput.value = target.dataset.icon;
+        }
+    });
+}
+
+function selectIconInPicker(icon) {
+    document.querySelectorAll('.icon-item').forEach(el => {
+        if (el.dataset.icon === icon) {
+            el.classList.add('selected');
+            sectionIconInput.value = icon;
+        } else {
+            el.classList.remove('selected');
+        }
+    });
+}
+
 // Event Listeners
 function setupEventListeners() {
-    addSectionBtn.addEventListener('click', () => openModal('section-modal'));
+    addSectionBtn.addEventListener('click', () => {
+        sectionModalTitle.textContent = 'New Section';
+        sectionNameInput.value = '';
+        sectionIdEdit.value = '';
+        const randomIcon = getRandomIcon();
+        selectIconInPicker(randomIcon);
+        openModal('section-modal');
+    });
 
     document.getElementById('cancel-section-btn').addEventListener('click', () => closeModal('section-modal'));
     document.getElementById('cancel-link-btn').addEventListener('click', () => closeModal('link-modal'));
 
     saveSectionBtn.addEventListener('click', () => {
-        const nameInput = document.getElementById('section-name');
-        if (nameInput.value.trim()) {
-            sections.push({
-                name: nameInput.value.trim(),
-                links: []
-            });
+        const name = sectionNameInput.value.trim();
+        const icon = sectionIconInput.value;
+        const editIndex = sectionIdEdit.value;
+
+        if (name) {
+            if (editIndex !== '') {
+                // Edit existing
+                sections[editIndex].name = name;
+                sections[editIndex].icon = icon;
+            } else {
+                // Add new
+                sections.push({
+                    name: name,
+                    icon: icon,
+                    links: []
+                });
+            }
             saveData();
             renderSections();
             closeModal('section-modal');
-            nameInput.value = '';
         }
     });
 
@@ -140,13 +220,19 @@ function setupEventListeners() {
     sectionsContainer.addEventListener('click', (e) => {
         const target = e.target;
         const action = target.dataset.action;
+        const index = target.dataset.index;
 
         if (action === 'open-link-modal') {
-            const index = target.dataset.index;
             document.getElementById('link-section-id').value = index;
             openModal('link-modal');
+        } else if (action === 'edit-section') {
+            const section = sections[index];
+            sectionModalTitle.textContent = 'Edit Section';
+            sectionNameInput.value = section.name;
+            sectionIdEdit.value = index;
+            selectIconInPicker(section.icon);
+            openModal('section-modal');
         } else if (action === 'delete-section') {
-            const index = target.dataset.index;
             deleteSection(index);
         } else if (action === 'delete-link') {
             const sIndex = target.dataset.section;
@@ -161,7 +247,7 @@ function exportData() {
     const blob = new Blob([data], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const date = new Date().toISOString().split('T')[0];
-    
+
     const a = document.createElement('a');
     a.href = url;
     a.download = `zentab-backup-${date}.json`;
@@ -178,7 +264,10 @@ function importData(file) {
             const imported = JSON.parse(e.target.result);
             if (Array.isArray(imported)) {
                 if (confirm('Importing will overwrite your current links. Continue?')) {
-                    sections = imported;
+                    sections = imported.map(s => ({
+                        ...s,
+                        icon: s.icon || getRandomIcon()
+                    }));
                     saveData();
                     renderSections();
                     alert('Backup restored successfully!');
@@ -219,4 +308,3 @@ function deleteLink(sIndex, lIndex) {
 
 // Run
 init();
-
