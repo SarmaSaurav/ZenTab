@@ -1,4 +1,5 @@
 :root {
+    /* Dark Mode Defaults */
     --bg-color: #0c0c0c;
     --text-color: #ffffff;
     --accent-color: #7c4dff;
@@ -6,6 +7,26 @@
     --glass-border: rgba(255, 255, 255, 0.1);
     --glass-blur: 15px;
     --font-main: 'Outfit', sans-serif;
+    --card-shadow: rgba(0, 0, 0, 0.3);
+    --modal-bg: #1a1a1a;
+    --input-bg: rgba(255, 255, 255, 0.05);
+    --grad-1: rgba(124, 77, 255, 0.1);
+    --grad-2: rgba(0, 229, 255, 0.1);
+    --toggle-bg: #2b2b2b;
+}
+
+[data-theme="light"] {
+    --bg-color: #f5f7fa;
+    --text-color: #1a1a1a;
+    --accent-color: #6200ea;
+    --glass-bg: rgba(255, 255, 255, 0.7);
+    --glass-border: rgba(0, 0, 0, 0.05);
+    --card-shadow: rgba(0, 0, 0, 0.05);
+    --modal-bg: #ffffff;
+    --input-bg: rgba(0, 0, 0, 0.03);
+    --grad-1: rgba(98, 0, 234, 0.05);
+    --grad-2: rgba(0, 184, 212, 0.05);
+    --toggle-bg: #e0e0e0;
 }
 
 * {
@@ -23,7 +44,8 @@ body {
     justify-content: center;
     align-items: center;
     overflow-x: hidden;
-    background-image: radial-gradient(circle at 50% 50%, #1a1a2e 0%, #0c0c0c 100%);
+    transition: background-color 0.4s ease, color 0.4s ease;
+    background-image: radial-gradient(circle at 50% 50%, var(--grad-1) 0%, var(--bg-color) 100%);
 }
 
 .background-overlay {
@@ -33,8 +55,8 @@ body {
     width: 100%;
     height: 100%;
     z-index: -1;
-    background: radial-gradient(circle at 80% 20%, rgba(124, 77, 255, 0.1) 0%, transparent 40%),
-        radial-gradient(circle at 20% 80%, rgba(0, 229, 255, 0.1) 0%, transparent 40%);
+    background: radial-gradient(circle at 80% 20%, var(--grad-1) 0%, transparent 40%),
+        radial-gradient(circle at 20% 80%, var(--grad-2) 0%, transparent 40%);
 }
 
 .dashboard {
@@ -80,7 +102,7 @@ body {
 
 .section-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+    box-shadow: 0 10px 30px var(--card-shadow);
     border-color: rgba(255, 255, 255, 0.2);
 }
 
@@ -147,7 +169,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 10px 15px;
-    background: rgba(255, 255, 255, 0.03);
+    background: var(--input-bg);
     border-radius: 12px;
     text-decoration: none;
     color: inherit;
@@ -155,7 +177,7 @@ body {
 }
 
 .link-item:hover {
-    background: rgba(255, 255, 255, 0.08);
+    background: rgba(255, 255, 255, 0.1);
 }
 
 .link-info {
@@ -244,7 +266,7 @@ body {
 }
 
 .modal-content {
-    background: #1a1a1a;
+    background: var(--modal-bg);
     padding: 30px;
     border-radius: 20px;
     width: 90%;
@@ -253,14 +275,15 @@ body {
     flex-direction: column;
     gap: 20px;
     border: 1px solid var(--glass-border);
+    box-shadow: 0 20px 40px var(--card-shadow);
 }
 
 input {
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--input-bg);
     border: 1px solid var(--glass-border);
     padding: 12px;
     border-radius: 10px;
-    color: white;
+    color: var(--text-color);
     font-family: inherit;
     outline: none;
 }
@@ -332,4 +355,85 @@ input:focus {
 .icon-item.selected {
     border-color: var(--accent-color);
     background: rgba(124, 77, 255, 0.1);
+}
+
+/* Theme Toggle styles */
+.theme-toggle-container {
+    position: fixed;
+    top: 30px;
+    right: 30px;
+    z-index: 100;
+}
+
+.theme-toggle-label {
+    width: 60px;
+    height: 30px;
+    position: relative;
+    display: block;
+    background: var(--toggle-bg);
+    border-radius: 200px;
+    cursor: pointer;
+    transition: 0.3s;
+    overflow: hidden;
+}
+
+.theme-toggle-label:after {
+    content: "";
+    width: 24px;
+    height: 24px;
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    background: #fff;
+    border-radius: 90px;
+    transition: 0.3s;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+}
+
+#theme-checkbox {
+    width: 0;
+    height: 0;
+    visibility: hidden;
+    position: absolute;
+}
+
+#theme-checkbox:checked+.theme-toggle-label {
+    background: var(--accent-color);
+}
+
+#theme-checkbox:checked+.theme-toggle-label:after {
+    left: 49px;
+    transform: translateX(-100%);
+}
+
+.theme-toggle-label:active:after {
+    width: 35px;
+}
+
+.toggle-icon {
+    position: absolute;
+    top: 7px;
+    font-size: 14px;
+    transition: 0.3s;
+    z-index: 1;
+}
+
+.sun-icon {
+    left: 8px;
+    color: #f1c40f;
+    opacity: 0;
+}
+
+.moon-icon {
+    right: 8px;
+    color: #f1c40f;
+    opacity: 1;
+}
+
+#theme-checkbox:checked+.theme-toggle-label .sun-icon {
+    opacity: 1;
+}
+
+#theme-checkbox:checked+.theme-toggle-label .moon-icon {
+    opacity: 0;
 }

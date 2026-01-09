@@ -19,6 +19,7 @@ const sectionsContainer = document.getElementById('sections-container');
 const addSectionBtn = document.getElementById('add-section-btn');
 const saveSectionBtn = document.getElementById('save-section-btn');
 const saveLinkBtn = document.getElementById('save-link-btn');
+const themeCheckbox = document.getElementById('theme-checkbox');
 
 const sectionModalTitle = document.getElementById('section-modal-title');
 const sectionNameInput = document.getElementById('section-name');
@@ -33,9 +34,39 @@ function init() {
     loadData();
     setupEventListeners();
     renderIconPicker();
+    initTheme();
 }
 
-// Time & Greeting
+// Theme Logic
+function initTheme() {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.sync.get(['theme'], (result) => {
+            applyTheme(result.theme || 'dark');
+        });
+    } else {
+        const savedTheme = localStorage.getItem('zenTabTheme') || 'dark';
+        applyTheme(savedTheme);
+    }
+
+    themeCheckbox.addEventListener('change', () => {
+        const newTheme = themeCheckbox.checked ? 'light' : 'dark';
+        applyTheme(newTheme);
+        saveTheme(newTheme);
+    });
+}
+
+function applyTheme(theme) {
+    document.documentElement.setAttribute('data-theme', theme);
+    themeCheckbox.checked = theme === 'light';
+}
+
+function saveTheme(theme) {
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+        chrome.storage.sync.set({ theme });
+    } else {
+        localStorage.setItem('zenTabTheme', theme);
+    }
+}
 function updateTime() {
     const now = new Date();
     const hours = now.getHours().toString().padStart(2, '0');
