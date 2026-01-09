@@ -26,6 +26,10 @@ const sectionNameInput = document.getElementById('section-name');
 const sectionIconInput = document.getElementById('section-icon');
 const sectionIdEdit = document.getElementById('section-id-edit');
 const iconPicker = document.getElementById('icon-picker');
+const sidebar = document.getElementById('sidebar');
+const sidebarToggle = document.getElementById('sidebar-toggle');
+const tabsList = document.getElementById('tabs-list');
+const refreshTabsBtn = document.getElementById('refresh-tabs');
 
 // Initialize
 function init() {
@@ -35,6 +39,7 @@ function init() {
     setupEventListeners();
     renderIconPicker();
     initTheme();
+    initSidebar();
 }
 
 // Theme Logic
@@ -67,6 +72,95 @@ function saveTheme(theme) {
         localStorage.setItem('zenTabTheme', theme);
     }
 }
+
+// Sidebar & Tabs Logic
+function initSidebar() {
+    sidebarToggle.addEventListener('click', () => {
+        sidebar.classList.toggle('active');
+        sidebarToggle.classList.toggle('active');
+        if (sidebar.classList.contains('active')) {
+            fetchOpenTabs();
+        }
+    });
+
+    refreshTabsBtn.addEventListener('click', fetchOpenTabs);
+}
+
+async function fetchOpenTabs() {
+    if (typeof chrome !== 'undefined' && chrome.tabs) {
+        chrome.tabs.query({}, (tabs) => {
+            renderTabs(tabs);
+        });
+    } else {
+        // Mock data for local testing
+        const mockTabs = [
+            { title: 'Google', url: 'https://google.com' },
+            { title: 'GitHub', url: 'https://github.com' },
+            { title: 'ZenTab Dashboard', url: 'chrome://newtab' }
+        ];
+        renderTabs(mockTabs);
+    }
+}
+
+function renderTabs(tabs) {
+    tabsList.innerHTML = '';
+    // Filter out internal pages and newtabs
+    const filteredTabs = tabs.filter(tab => !tab.url.startsWith('chrome://') && !tab.url.startsWith('edge://'));
+
+    if (filteredTabs.length === 0) {
+        tabsList.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:20px;">No external tabs open</p>';
+        return;
+    }
+
+    filteredTabs.forEach((tab, index) => {
+        const tabEl = document.createElement('div');
+        tabEl.className = 'tab-item';
+        tabEl.innerHTML = `
+            <div class="tab-info">
+                <span class="tab-title" title="${tab.title}">${tab.title}</span>
+                <span class="tab-url">${new URL(tab.url).hostname}</span>
+            </div>
+            <div class="tab-actions">
+                <button class="btn-add-tab" data-url="${tab.url}" data-title="${tab.title}">+ Add to Section</button>
+            </div>
+        `;
+        tabsList.appendChild(tabEl);
+    });
+
+    // Add event listeners for "Add to Section"
+    tabsList.querySelectorAll('.btn-add-tab').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const url = e.target.dataset.url;
+            const title = e.target.dataset.title;
+            showSectionPickerForTab(url, title);
+        });
+    });
+}
+
+function showSectionPickerForTab(url, title) {
+    if (sections.length === 0) {
+        alert('Please create a section first!');
+        return;
+    }
+
+    // Dynamic section picker (simple prompt for now, can be improved to a custom modal)
+    const options = sections.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
+    const choice = prompt(`Add "${title}" to which section?\n\n${options}`);
+
+    if (choice) {
+        const index = parseInt(choice) - 1;
+        if (sections[index]) {
+            sections[index].links.push({
+                name: title,
+                url: url
+            });
+            saveData();
+            renderSections();
+            alert(`Added to ${sections[index].name}`);
+        }
+    }
+}
+
 function updateTime() {
     const now = new Date();
     const hours = now.getHours().toString().padStart(2, '0');
