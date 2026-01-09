@@ -12,6 +12,15 @@ function getRandomIcon() {
 // State management
 let sections = [];
 
+function isDuplicateUrl(url) {
+    const normalize = (u) => u.replace(/\/$/, '').toLowerCase();
+    const normalizedUrl = normalize(url);
+
+    return sections.some(section =>
+        section.links.some(link => normalize(link.url) === normalizedUrl)
+    );
+}
+
 // DOM Elements
 const clockElement = document.getElementById('clock');
 const greetingElement = document.getElementById('greeting');
@@ -105,7 +114,13 @@ async function fetchOpenTabs() {
 function renderTabs(tabs) {
     tabsList.innerHTML = '';
     // Filter out internal pages and newtabs
-    const filteredTabs = tabs.filter(tab => !tab.url.startsWith('chrome://') && !tab.url.startsWith('edge://'));
+    const filteredTabs = tabs.filter(tab => {
+        if (!tab || !tab.url) return false;
+        return !tab.url.startsWith('chrome://') &&
+            !tab.url.startsWith('edge://') &&
+            !tab.url.startsWith('brave://') &&
+            !tab.url.startsWith('about:');
+    });
 
     if (filteredTabs.length === 0) {
         tabsList.innerHTML = '<p style="text-align:center; opacity:0.5; margin-top:20px;">No external tabs open</p>';
@@ -138,27 +153,26 @@ function renderTabs(tabs) {
 }
 
 function showSectionPickerForTab(url, title) {
-    if (sections.length === 0) {
-        alert('Please create a section first!');
-        return;
-    }
+    const existingSelect = document.getElementById('existing-section-select');
+    const newSectionInput = document.getElementById('new-section-name');
+    const urlInput = document.getElementById('tab-to-add-url');
+    const titleInput = document.getElementById('tab-to-add-title');
 
-    // Dynamic section picker (simple prompt for now, can be improved to a custom modal)
-    const options = sections.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
-    const choice = prompt(`Add "${title}" to which section?\n\n${options}`);
+    // Reset fields
+    newSectionInput.value = '';
+    urlInput.value = url;
+    titleInput.value = title;
 
-    if (choice) {
-        const index = parseInt(choice) - 1;
-        if (sections[index]) {
-            sections[index].links.push({
-                name: title,
-                url: url
-            });
-            saveData();
-            renderSections();
-            alert(`Added to ${sections[index].name}`);
-        }
-    }
+    // Populate dropdown
+    existingSelect.innerHTML = '<option value="">-- Select Section --</option>';
+    sections.forEach((s, i) => {
+        const opt = document.createElement('option');
+        opt.value = i;
+        opt.textContent = s.name;
+        existingSelect.appendChild(opt);
+    });
+
+    openModal('tab-picker-modal');
 }
 
 function updateTime() {
@@ -285,6 +299,42 @@ function setupEventListeners() {
 
     document.getElementById('cancel-section-btn').addEventListener('click', () => closeModal('section-modal'));
     document.getElementById('cancel-link-btn').addEventListener('click', () => closeModal('link-modal'));
+    document.getElementById('cancel-tab-picker-btn').addEventListener('click', () => closeModal('tab-picker-modal'));
+
+    document.getElementById('save-tab-picker-btn').addEventListener('click', () => {
+        const existingIndex = document.getElementById('existing-section-select').value;
+        const newName = document.getElementById('new-section-name').value.trim();
+        const url = document.getElementById('tab-to-add-url').value;
+        const title = document.getElementById('tab-to-add-title').value;
+
+        if (isDuplicateUrl(url)) {
+            alert('This URL is already pinned in one of your sections!');
+            return;
+        }
+
+        if (newName) {
+            // Create new section
+            sections.push({
+                name: newName,
+                icon: getRandomIcon(),
+                links: [{ name: title, url: url }]
+            });
+            saveData();
+            renderSections();
+            closeModal('tab-picker-modal');
+        } else if (existingIndex !== "") {
+            // Add to existing
+            sections[existingIndex].links.push({
+                name: title,
+                url: url
+            });
+            saveData();
+            renderSections();
+            closeModal('tab-picker-modal');
+        } else {
+            alert('Please select an existing section or type a new section name.');
+        }
+    });
 
     saveSectionBtn.addEventListener('click', () => {
         const name = sectionNameInput.value.trim();
@@ -318,6 +368,11 @@ function setupEventListeners() {
         if (nameInput.value.trim() && urlInput.value.trim()) {
             let url = urlInput.value.trim();
             if (!url.startsWith('http')) url = 'https://' + url;
+
+            if (isDuplicateUrl(url)) {
+                alert('This URL is already pinned in one of your sections!');
+                return;
+            }
 
             sections[sectionIndex].links.push({
                 name: nameInput.value.trim(),

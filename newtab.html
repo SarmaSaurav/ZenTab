@@ -90,6 +90,31 @@
         </div>
     </div>
 
+    <div id="tab-picker-modal" class="modal">
+        <div class="modal-content">
+            <h2>Add Tab to Section</h2>
+            <div class="picker-group">
+                <label for="existing-section-select">Add to existing:</label>
+                <select id="existing-section-select" class="picker-select">
+                    <option value="">-- Select Section --</option>
+                </select>
+            </div>
+            <div class="picker-divider">
+                <span>OR</span>
+            </div>
+            <div class="picker-group">
+                <label for="new-section-name">Add to new section:</label>
+                <input type="text" id="new-section-name" placeholder="New Section Name">
+            </div>
+            <input type="hidden" id="tab-to-add-url">
+            <input type="hidden" id="tab-to-add-title">
+            <div class="modal-actions">
+                <button id="cancel-tab-picker-btn" class="btn btn-secondary">Cancel</button>
+                <button id="save-tab-picker-btn" class="btn btn-primary">Add Tab</button>
+            </div>
+        </div>
+    </div>
+
     <script src="newtab.js"></script>
 </body>
 
