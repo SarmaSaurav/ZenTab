@@ -1,4 +1,4 @@
-// Icons dictionary (Emojis for simplicity and variety, can be replaced with SVGs if needed)
+// Icons dictionary
 const ICONS = [
     '📁', '🔗', '⭐', '🛠️', '📝', '🎨', '🚀', '🧠', '💼', '🏠',
     '📺', '🎮', '🎵', '📸', '🛒', '🍔', '✈️', '🌍', '❤️', '💡',
@@ -11,6 +11,7 @@ function getRandomIcon() {
 
 // State management
 let sections = [];
+let dragSrcEl = null; // Drag and Drop State
 
 function isDuplicateUrl(url) {
     const normalize = (u) => u.replace(/\/$/, '').toLowerCase();
@@ -40,6 +41,77 @@ const sidebarToggle = document.getElementById('sidebar-toggle');
 const tabsList = document.getElementById('tabs-list');
 const refreshTabsBtn = document.getElementById('refresh-tabs');
 
+// Settings & Utilities Constants
+
+let confirmCallbackYes = null;
+let confirmCallbackCancel = null;
+
+// Search & Filter Logic
+function initSearch() {
+    const searchInput = document.getElementById('search-input');
+
+    if (!searchInput) return;
+
+    searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase();
+        filterContent(query);
+    });
+
+    searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+            const query = searchInput.value.trim();
+            if (query) {
+                // If it looks like a URL, navigate there
+                if (query.match(/^(http|https):\/\/[^ "]+$/) || query.match(/^[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$/)) {
+                    let url = query;
+                    if (!url.startsWith('http')) url = 'https://' + url;
+                    window.location.href = url;
+                } else {
+                    // Otherwise search Google
+                    window.location.href = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+                }
+            }
+        }
+    });
+}
+
+function filterContent(query) {
+    const sections = document.querySelectorAll('.section-card');
+    let hasResults = false;
+
+    sections.forEach(section => {
+        const sectionTitle = section.querySelector('.section-title').textContent.toLowerCase();
+        const links = section.querySelectorAll('.link-item-wrapper');
+        let sectionHasMatch = false;
+
+        // Check if section title matches
+        if (sectionTitle.includes(query)) {
+            sectionHasMatch = true;
+            links.forEach(link => link.style.display = 'block');
+        } else {
+            // Check individual links
+            links.forEach(link => {
+                const linkName = link.querySelector('.link-name').textContent.toLowerCase();
+                const linkUrl = link.querySelector('.link-url').textContent.toLowerCase();
+
+                if (linkName.includes(query) || linkUrl.includes(query)) {
+                    link.style.display = 'block';
+                    sectionHasMatch = true;
+                } else {
+                    link.style.display = 'none';
+                }
+            });
+        }
+
+        if (sectionHasMatch) {
+            section.style.display = 'block';
+            hasResults = true;
+        } else {
+            section.style.display = 'none';
+        }
+    });
+}
+
 // Initialize
 function init() {
     updateTime();
@@ -49,6 +121,8 @@ function init() {
     renderIconPicker();
     initTheme();
     initSidebar();
+    initSearch();
+    initSettings();
 }
 
 // Theme Logic
@@ -101,7 +175,7 @@ async function fetchOpenTabs() {
             renderTabs(tabs);
         });
     } else {
-        // Mock data for local testing
+        // Mock data
         const mockTabs = [
             { title: 'Google', url: 'https://google.com' },
             { title: 'GitHub', url: 'https://github.com' },
@@ -113,7 +187,6 @@ async function fetchOpenTabs() {
 
 function renderTabs(tabs) {
     tabsList.innerHTML = '';
-    // Filter out internal pages and newtabs
     const filteredTabs = tabs.filter(tab => {
         if (!tab || !tab.url) return false;
         return !tab.url.startsWith('chrome://') &&
@@ -142,7 +215,6 @@ function renderTabs(tabs) {
         tabsList.appendChild(tabEl);
     });
 
-    // Add event listeners for "Add to Section"
     tabsList.querySelectorAll('.btn-add-tab').forEach(btn => {
         btn.addEventListener('click', (e) => {
             const url = e.target.dataset.url;
@@ -158,12 +230,10 @@ function showSectionPickerForTab(url, title) {
     const urlInput = document.getElementById('tab-to-add-url');
     const titleInput = document.getElementById('tab-to-add-title');
 
-    // Reset fields
     newSectionInput.value = '';
     urlInput.value = url;
     titleInput.value = title;
 
-    // Populate dropdown
     existingSelect.innerHTML = '<option value="">-- Select Section --</option>';
     sections.forEach((s, i) => {
         const opt = document.createElement('option');
@@ -198,10 +268,8 @@ function loadData() {
             renderSections();
         });
     } else {
-        // Fallback for local testing
         const saved = localStorage.getItem('zenTabSections');
         sections = saved ? JSON.parse(saved) : [];
-        // Migration: add icons to existing sections
         let migrated = false;
         sections = sections.map(s => {
             if (!s.icon) {
@@ -223,13 +291,17 @@ function saveData() {
     }
 }
 
-// Rendering
+// Rendering Sections (with Drag and Drop & Favicons)
 function renderSections() {
     sectionsContainer.innerHTML = '';
 
     sections.forEach((section, index) => {
         const sectionEl = document.createElement('div');
         sectionEl.className = 'section-card';
+        sectionEl.setAttribute('draggable', 'true');
+        sectionEl.dataset.type = 'section';
+        sectionEl.dataset.index = index;
+
         sectionEl.innerHTML = `
             <div class="section-header">
                 <div class="section-title-container">
@@ -241,23 +313,149 @@ function renderSections() {
                     <span class="delete-btn" data-action="delete-section" data-index="${index}">✕</span>
                 </div>
             </div>
-            <div class="links-list">
-                ${section.links.map((link, linkIndex) => `
-                    <div class="link-item-wrapper" style="position: relative;">
+            <div class="links-list" data-section-index="${index}">
+                ${section.links.map((link, linkIndex) => {
+            const hostname = new URL(link.url).hostname;
+            const faviconUrl = `https://www.google.com/s2/favicons?domain=${hostname}&sz=32`;
+
+            return `
+                    <div class="link-item-wrapper" style="position: relative;" draggable="true" data-type="link" data-section="${index}" data-link="${linkIndex}">
                         <a href="${link.url}" class="link-item">
+                            <img src="${faviconUrl}" class="link-favicon" alt="" onerror="this.style.display='none'">
                             <div class="link-info">
                                 <span class="link-name">${link.name}</span>
-                                <span class="link-url">${new URL(link.url).hostname}</span>
+                                <span class="link-url">${hostname}</span>
                             </div>
                         </a>
                         <span class="delete-btn" style="position: absolute; right: 10px; top: 12px;" data-action="delete-link" data-section="${index}" data-link="${linkIndex}">✕</span>
                     </div>
-                `).join('')}
+                `}).join('')}
             </div>
             <button class="btn-add-link" data-action="open-link-modal" data-index="${index}">+ Add Link</button>
         `;
         sectionsContainer.appendChild(sectionEl);
     });
+
+    setupDragAndDrop();
+}
+
+// Drag and Drop Logic
+function setupDragAndDrop() {
+    const sections = document.querySelectorAll('.section-card');
+    const links = document.querySelectorAll('.link-item-wrapper');
+    const linkLists = document.querySelectorAll('.links-list');
+
+    sections.forEach(s => addDnDHandlers(s));
+    links.forEach(l => addDnDHandlers(l));
+
+    linkLists.forEach(list => {
+        list.addEventListener('dragover', (e) => {
+            if (dragSrcEl && dragSrcEl.dataset.type === 'link') {
+                e.preventDefault();
+                e.dataTransfer.dropEffect = 'move';
+                list.classList.add('drag-over');
+            }
+        });
+        list.addEventListener('dragleave', (e) => {
+            list.classList.remove('drag-over');
+        });
+        list.addEventListener('drop', handleDropOnList);
+    });
+}
+
+function addDnDHandlers(elem) {
+    elem.addEventListener('dragstart', handleDragStart);
+    elem.addEventListener('dragover', handleDragOver);
+    elem.addEventListener('dragenter', handleDragEnter);
+    elem.addEventListener('dragleave', handleDragLeave);
+    elem.addEventListener('drop', handleDrop);
+    elem.addEventListener('dragend', handleDragEnd);
+}
+
+function handleDragStart(e) {
+    e.stopPropagation();
+    dragSrcEl = this;
+    this.classList.add('dragging');
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', JSON.stringify({
+        type: this.dataset.type,
+        index: parseInt(this.dataset.index),
+        section: parseInt(this.dataset.section),
+        link: parseInt(this.dataset.link)
+    }));
+}
+
+function handleDragOver(e) {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (dragSrcEl === this) return;
+
+    if (dragSrcEl.dataset.type === this.dataset.type) {
+        this.classList.add('drag-over');
+        e.dataTransfer.dropEffect = 'move';
+    }
+}
+
+function handleDragEnter(e) { }
+function handleDragLeave(e) { this.classList.remove('drag-over'); }
+
+function handleDrop(e) {
+    e.stopPropagation();
+    this.classList.remove('drag-over');
+
+    if (dragSrcEl === this) return;
+
+    const srcType = dragSrcEl.dataset.type;
+    const destType = this.dataset.type;
+
+    if (srcType !== destType) return;
+
+    if (srcType === 'section') {
+        const srcIndex = parseInt(dragSrcEl.dataset.index);
+        const destIndex = parseInt(this.dataset.index);
+
+        const item = sections.splice(srcIndex, 1)[0];
+        sections.splice(destIndex, 0, item);
+
+        saveData();
+        renderSections();
+    } else if (srcType === 'link') {
+        const srcSection = parseInt(dragSrcEl.dataset.section);
+        const srcLink = parseInt(dragSrcEl.dataset.link);
+        const destSection = parseInt(this.dataset.section);
+        const destLink = parseInt(this.dataset.link);
+
+        const item = sections[srcSection].links.splice(srcLink, 1)[0];
+        sections[destSection].links.splice(destLink, 0, item);
+
+        saveData();
+        renderSections();
+    }
+    return false;
+}
+
+function handleDropOnList(e) {
+    e.stopPropagation();
+    this.classList.remove('drag-over');
+
+    if (!dragSrcEl || dragSrcEl.dataset.type !== 'link') return;
+
+    const srcSection = parseInt(dragSrcEl.dataset.section);
+    const srcLink = parseInt(dragSrcEl.dataset.link);
+    const destSectionIdx = parseInt(this.dataset.sectionIndex);
+
+    const item = sections[srcSection].links.splice(srcLink, 1)[0];
+    sections[destSectionIdx].links.push(item);
+
+    saveData();
+    renderSections();
+}
+
+function handleDragEnd(e) {
+    this.classList.remove('dragging');
+    document.querySelectorAll('.drag-over').forEach(el => el.classList.remove('drag-over'));
+    document.querySelectorAll('.dragging').forEach(el => el.classList.remove('dragging'));
 }
 
 function renderIconPicker() {
@@ -302,18 +500,18 @@ function setupEventListeners() {
     document.getElementById('cancel-tab-picker-btn').addEventListener('click', () => closeModal('tab-picker-modal'));
 
     document.getElementById('save-tab-picker-btn').addEventListener('click', () => {
+        // ... (rest of logic same) ...
         const existingIndex = document.getElementById('existing-section-select').value;
         const newName = document.getElementById('new-section-name').value.trim();
         const url = document.getElementById('tab-to-add-url').value;
         const title = document.getElementById('tab-to-add-title').value;
 
         if (isDuplicateUrl(url)) {
-            alert('This URL is already pinned in one of your sections!');
+            showToast('This URL is already pinned!', 'error');
             return;
         }
 
         if (newName) {
-            // Create new section
             sections.push({
                 name: newName,
                 icon: getRandomIcon(),
@@ -323,7 +521,6 @@ function setupEventListeners() {
             renderSections();
             closeModal('tab-picker-modal');
         } else if (existingIndex !== "") {
-            // Add to existing
             sections[existingIndex].links.push({
                 name: title,
                 url: url
@@ -332,7 +529,7 @@ function setupEventListeners() {
             renderSections();
             closeModal('tab-picker-modal');
         } else {
-            alert('Please select an existing section or type a new section name.');
+            showToast('Please select a section or create a new one.', 'error');
         }
     });
 
@@ -343,11 +540,9 @@ function setupEventListeners() {
 
         if (name) {
             if (editIndex !== '') {
-                // Edit existing
                 sections[editIndex].name = name;
                 sections[editIndex].icon = icon;
             } else {
-                // Add new
                 sections.push({
                     name: name,
                     icon: icon,
@@ -370,7 +565,7 @@ function setupEventListeners() {
             if (!url.startsWith('http')) url = 'https://' + url;
 
             if (isDuplicateUrl(url)) {
-                alert('This URL is already pinned in one of your sections!');
+                showToast('This URL is already pinned!', 'error');
                 return;
             }
 
@@ -386,17 +581,8 @@ function setupEventListeners() {
         }
     });
 
-    // Backup & Restore
-    document.getElementById('export-btn').addEventListener('click', exportData);
-    document.getElementById('import-btn').addEventListener('click', () => {
-        document.getElementById('import-input').click();
-    });
-    document.getElementById('import-input').addEventListener('change', (e) => {
-        const file = e.target.files[0];
-        if (file) importData(file);
-    });
+    // Old Export/Import listeners removed - moved to settings
 
-    // Event Delegation for dynamic elements
     sectionsContainer.addEventListener('click', (e) => {
         const target = e.target;
         const action = target.dataset.action;
@@ -443,20 +629,20 @@ function importData(file) {
         try {
             const imported = JSON.parse(e.target.result);
             if (Array.isArray(imported)) {
-                if (confirm('Importing will overwrite your current links. Continue?')) {
+                showConfirm('Importing will overwrite current links. Continue?', () => {
                     sections = imported.map(s => ({
                         ...s,
                         icon: s.icon || getRandomIcon()
                     }));
                     saveData();
                     renderSections();
-                    alert('Backup restored successfully!');
-                }
+                    showToast('Backup restored successfully!', 'success');
+                });
             } else {
-                alert('Invalid backup file format.');
+                showToast('Invalid backup file format.', 'error');
             }
         } catch (err) {
-            alert('Error parsing backup file.');
+            showToast('Error parsing backup file.', 'error');
         }
     };
     reader.readAsText(file);
@@ -473,17 +659,143 @@ function closeModal(id) {
 
 // Delete Logic
 function deleteSection(index) {
-    if (confirm('Delete this section and all its links?')) {
+    showConfirm('Delete this section and all its links?', () => {
         sections.splice(index, 1);
         saveData();
         renderSections();
-    }
+        showToast('Section deleted.', 'success');
+    });
 }
 
 function deleteLink(sIndex, lIndex) {
     sections[sIndex].links.splice(lIndex, 1);
     saveData();
     renderSections();
+    showToast('Link removed.', 'info');
+}
+
+function initSettings() {
+    const settingsBtn = document.getElementById('settings-toggle');
+    const closeSettings = document.getElementById('close-settings-btn');
+    const testToast = document.getElementById('toast-test-btn');
+
+    // Load saved custom background
+    const savedBg = localStorage.getItem('customBg');
+    if (savedBg) {
+        document.querySelector('.background-overlay').style.backgroundImage = `url('${savedBg}')`;
+        document.querySelector('.background-overlay').style.backgroundSize = 'cover';
+        document.querySelector('.background-overlay').style.backgroundPosition = 'center';
+    }
+
+    if (settingsBtn) settingsBtn.addEventListener('click', () => openModal('settings-modal'));
+    if (closeSettings) closeSettings.addEventListener('click', () => closeModal('settings-modal'));
+
+    // Data Management
+    const exportBtn = document.getElementById('export-btn');
+    const importBtn = document.getElementById('import-btn');
+    const importInput = document.getElementById('import-input');
+
+    if (exportBtn) exportBtn.addEventListener('click', exportData);
+    if (importBtn) importBtn.addEventListener('click', () => importInput.click());
+    if (importInput) importInput.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) importData(file);
+    });
+
+    // Custom Background Logic
+    const bgUpload = document.getElementById('bg-upload');
+    const resetBgBtn = document.getElementById('reset-bg-btn');
+
+    if (bgUpload) {
+        bgUpload.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 5 * 1024 * 1024) { // 5MB limit check
+                    showToast('Image too large. Max 5MB.', 'error');
+                    return;
+                }
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    const dataUrl = event.target.result;
+                    try {
+                        localStorage.setItem('customBg', dataUrl);
+                        document.querySelector('.background-overlay').style.backgroundImage = `url('${dataUrl}')`;
+                        document.querySelector('.background-overlay').style.backgroundSize = 'cover';
+                        document.querySelector('.background-overlay').style.backgroundPosition = 'center';
+                        showToast('Background updated!', 'success');
+                    } catch (err) {
+                        showToast('Failed to save image. It might be too large.', 'error');
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    }
+
+    if (resetBgBtn) {
+        resetBgBtn.addEventListener('click', () => {
+            localStorage.removeItem('customBg');
+            document.querySelector('.background-overlay').style.backgroundImage = '';
+            showToast('Background reset.', 'info');
+            if (bgUpload) bgUpload.value = '';
+        });
+    }
+
+    if (testToast) testToast.addEventListener('click', () => showToast('This is a test notification!', 'success'));
+
+    // Setup Confirm Modal
+    const confirmCancel = document.getElementById('confirm-cancel-btn');
+    const confirmYes = document.getElementById('confirm-yes-btn');
+
+    if (confirmCancel) {
+        confirmCancel.addEventListener('click', () => {
+            closeModal('confirm-modal');
+            if (confirmCallbackCancel) confirmCallbackCancel();
+            cleanConfirmCallbacks();
+        });
+    }
+
+    if (confirmYes) {
+        confirmYes.addEventListener('click', () => {
+            closeModal('confirm-modal');
+            if (confirmCallbackYes) confirmCallbackYes();
+            cleanConfirmCallbacks();
+        });
+    }
+}
+
+function cleanConfirmCallbacks() {
+    confirmCallbackYes = null;
+    confirmCallbackCancel = null;
+}
+
+function showToast(message, type = 'info') {
+    const container = document.getElementById('toast-container');
+    const toast = document.createElement('div');
+    toast.className = `toast toast-${type}`;
+
+    let icon = 'ℹ️';
+    if (type === 'success') icon = '✅';
+    if (type === 'error') icon = '⚠️';
+
+    toast.innerHTML = `<span>${icon}</span> <span>${message}</span>`;
+
+    container.appendChild(toast);
+
+    setTimeout(() => {
+        toast.style.animation = 'fadeOut 0.3s forwards';
+        toast.addEventListener('animationend', () => {
+            if (toast.parentElement) toast.remove();
+        });
+    }, 3000);
+}
+
+function showConfirm(message, onYes, onCancel) {
+    const confirmMsg = document.getElementById('confirm-message');
+    if (confirmMsg) confirmMsg.textContent = message;
+    confirmCallbackYes = onYes;
+    confirmCallbackCancel = onCancel;
+    openModal('confirm-modal');
 }
 
 // Run

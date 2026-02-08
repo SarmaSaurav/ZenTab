@@ -15,6 +15,8 @@
     <div class="background-overlay"></div>
 
     <div class="theme-toggle-container">
+        <button id="settings-toggle" class="btn-icon" title="Settings"
+            style="background: rgba(0,0,0,0.2); width: 30px; height: 30px; border-radius: 50%; font-size: 1.2rem; display: flex; align-items: center; justify-content: center;">⚙️</button>
         <input type="checkbox" id="theme-checkbox">
         <label for="theme-checkbox" class="theme-toggle-label">
             <span class="toggle-icon sun-icon">☀️</span>
@@ -39,6 +41,12 @@
     </aside>
 
     <main class="dashboard" id="main-content">
+        <div class="search-container" style="display: flex; gap: 10px; align-items: center; justify-content: center;">
+            <input type="text" id="search-input" placeholder="Search Google or type to filter links..."
+                autocomplete="off">
+            <button id="add-section-btn" class="btn btn-primary" style="white-space: nowrap;">+ Section</button>
+        </div>
+
         <header class="header">
             <h1 class="time" id="clock">00:00</h1>
             <p class="greeting" id="greeting">Good afternoon</p>
@@ -49,9 +57,7 @@
         </section>
 
         <div class="actions">
-            <button id="add-section-btn" class="btn btn-primary">Add Section</button>
-            <button id="export-btn" class="btn btn-secondary">Export Backup</button>
-            <button id="import-btn" class="btn btn-secondary">Import Backup</button>
+            <!-- Export/Import moved to settings -->
             <input type="file" id="import-input" style="display: none;" accept=".json">
         </div>
     </main>
@@ -114,6 +120,60 @@
             </div>
         </div>
     </div>
+
+    <div id="settings-modal" class="modal">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header"
+                style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 style="margin: 0;">Settings</h2>
+                <button id="close-settings-btn" class="btn-icon" style="font-size: 1.5rem;">&times;</button>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="font-size: 1rem; margin-bottom: 10px; opacity: 0.8;">Customization</h3>
+                <div class="picker-group">
+                    <label style="margin-bottom: 5px; display: block;">Custom Background Image</label>
+                    <div style="display: flex; gap: 10px;">
+                        <input type="file" id="bg-upload" accept="image/*" style="flex: 1;">
+                        <button id="reset-bg-btn" class="btn btn-secondary" title="Reset to default gradient">↺</button>
+                    </div>
+                    <p style="font-size: 0.75rem; opacity: 0.5; margin-top: 5px;">Supported: JPG, PNG. Max 5MB
+                        recommended.</p>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="font-size: 1rem; margin-bottom: 10px; opacity: 0.8; margin-top: 10px;">Data Management</h3>
+                <div class="picker-group" style="flex-direction: row; gap: 10px;">
+                    <button id="export-btn" class="btn btn-secondary" style="flex: 1;">Export Backup</button>
+                    <button id="import-btn" class="btn btn-secondary" style="flex: 1;">Import Backup</button>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <h3 style="font-size: 1rem; margin-bottom: 10px; opacity: 0.8; margin-top: 10px;">Testing</h3>
+                <div class="picker-group"
+                    style="flex-direction: row; justify-content: space-between; align-items: center;">
+                    <label for="toast-test-btn" style="font-size: 0.9rem;">Test Notification</label>
+                    <button id="toast-test-btn" class="btn btn-secondary"
+                        style="padding: 5px 10px; font-size: 0.8rem;">Test</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="confirm-modal" class="modal">
+        <div class="modal-content" style="max-width: 350px; text-align: center;">
+            <h2 style="margin-bottom: 10px;">Are you sure?</h2>
+            <p id="confirm-message" style="margin-bottom: 20px; opacity: 0.8;">This action cannot be undone.</p>
+            <div class="modal-actions" style="justify-content: center;">
+                <button id="confirm-cancel-btn" class="btn btn-secondary">Cancel</button>
+                <button id="confirm-yes-btn" class="btn btn-primary" style="background: #ff4d4d;">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="toast-container"></div>
 
     <script src="newtab.js"></script>
 </body>
