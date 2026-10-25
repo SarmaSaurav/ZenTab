@@ -256,11 +256,11 @@ body {
     display: none;
 }
 
-[data-theme="light"] #theme-moon-icon {
+html[data-theme="light"] #theme-moon-icon {
     display: block;
 }
 
-:not([data-theme="light"]) #theme-sun-icon {
+html:not([data-theme="light"]) #theme-sun-icon {
     display: block;
 }
 
@@ -424,6 +424,23 @@ body {
     gap: 22px;
 }
 
+.sections-grid[data-columns="2"] { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.sections-grid[data-columns="3"] { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.sections-grid[data-columns="4"] { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.sections-grid[data-columns="5"] { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+
+@media (max-width: 900px) {
+    .sections-grid[data-columns] {
+        grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    }
+}
+
+@media (max-width: 600px) {
+    .sections-grid[data-columns] {
+        grid-template-columns: 1fr;
+    }
+}
+
 .section-card {
     background: var(--glass-bg);
     backdrop-filter: blur(24px) saturate(180%);
@@ -452,6 +469,49 @@ body {
     transform: scale(0.97);
 }
 
+.section-card.collapsed {
+    align-self: start;
+}
+
+/* Collapsible section body */
+.section-body {
+    display: grid;
+    grid-template-rows: 1fr;
+    flex: 1;
+    opacity: 1;
+    visibility: visible;
+    transition: grid-template-rows 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.25s ease,
+                visibility 0s linear 0s;
+}
+
+.section-body-inner {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-height: 0;
+    overflow: hidden;
+}
+
+.section-card.collapsed .section-body {
+    grid-template-rows: 0fr;
+    opacity: 0;
+    visibility: hidden;
+    transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.2s ease,
+                visibility 0s linear 0.3s;
+}
+
+/* Search reveals matches even when a section is folded. */
+.section-card.force-expanded .section-body {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    visibility: visible;
+    transition: grid-template-rows 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 0.2s ease,
+                visibility 0s linear 0s;
+}
+
 .section-card.drag-over,
 .links-list.drag-over {
     border: 2px dashed var(--accent-color) !important;
@@ -470,6 +530,38 @@ body {
     align-items: center;
     gap: 10px;
     overflow: hidden;
+}
+
+.section-collapse-btn {
+    width: 22px;
+    height: 22px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 0;
+    background: transparent;
+    border: none;
+    border-radius: 5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1),
+                color 0.2s ease,
+                background 0.2s ease;
+}
+
+.section-collapse-btn:hover {
+    color: var(--text-primary);
+    background: var(--input-bg);
+}
+
+.section-collapse-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 1px;
+}
+
+.section-card.collapsed .section-collapse-btn {
+    transform: rotate(-90deg);
 }
 
 .section-icon {
@@ -720,6 +812,24 @@ body {
 .btn-secondary:hover {
     background: var(--glass-bg-hover);
     border-color: var(--glass-border-hover);
+}
+
+#fold-all-btn svg {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+#fold-all-btn[aria-pressed="true"] {
+    color: var(--accent-color);
+    border-color: var(--accent-color);
+}
+
+#fold-all-btn[aria-pressed="true"] svg {
+    transform: rotate(180deg);
+}
+
+#fold-all-btn:focus-visible {
+    outline: 2px solid var(--accent-color);
+    outline-offset: 2px;
 }
 
 .btn-danger {
@@ -990,8 +1100,22 @@ select option {
     display: flex;
     justify-content: space-between;
     align-items: center;
+    gap: 16px;
     font-size: 0.9rem;
     color: var(--text-primary);
+}
+
+.setting-select {
+    width: auto;
+    min-width: 92px;
+    padding: 7px 10px;
+    flex-shrink: 0;
+}
+
+.settings-hint {
+    font-size: 0.78rem;
+    line-height: 1.45;
+    color: var(--text-muted);
 }
 
 /* Switch Toggle */
@@ -1325,4 +1449,26 @@ input[type="range"] {
 @keyframes toastOut {
     0% { opacity: 1; transform: translateY(0); }
     100% { opacity: 0; transform: translateY(8px); }
+}
+
+/* Small screens: keep the search actions compact */
+@media (max-width: 640px) {
+    #fold-all-label {
+        display: none;
+    }
+
+    #fold-all-btn {
+        padding: 6px 10px;
+    }
+}
+
+/* Respect reduced-motion preferences */
+@media (prefers-reduced-motion: reduce) {
+    .section-body,
+    .section-collapse-btn,
+    #fold-all-btn svg,
+    .section-card,
+    .link-item {
+        transition: none !important;
+    }
 }

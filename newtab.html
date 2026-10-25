@@ -90,6 +90,13 @@
                 <input type="text" id="search-input" placeholder="Search Google or type :yt, :gh, :w, :r, :ddg..." autocomplete="off" spellcheck="false">
                 <div class="search-actions">
                     <kbd class="shortcut-badge" id="search-shortcut-badge">Ctrl K</kbd>
+                    <button id="fold-all-btn" class="btn btn-secondary btn-sm" title="Fold all sections" aria-label="Fold all sections" aria-pressed="false">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="4 7 12 15 20 7"/>
+                            <polyline points="4 13 12 21 20 13"/>
+                        </svg>
+                        <span id="fold-all-label">Fold</span>
+                    </button>
                     <button id="add-section-btn" class="btn btn-primary btn-sm">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M5 12h14"/>
@@ -243,6 +250,22 @@
                             <span class="preset-name">Crisp Light</span>
                         </button>
                     </div>
+                </div>
+
+                <!-- Dashboard Layout -->
+                <div class="settings-group">
+                    <h3>Dashboard Layout</h3>
+                    <div class="settings-row">
+                        <label for="setting-cards-per-row">Cards per row</label>
+                        <select id="setting-cards-per-row" class="setting-select">
+                            <option value="auto">Auto</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                            <option value="4">4</option>
+                            <option value="5">5</option>
+                        </select>
+                    </div>
+                    <p class="settings-hint">Auto fits as many cards as the window allows. Click a section header to fold it, or use the Fold button next to search.</p>
                 </div>
 
                 <!-- Clock & Header Options -->

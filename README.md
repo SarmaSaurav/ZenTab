@@ -9,6 +9,8 @@ A premium, minimal Chrome extension that replaces your default New Tab page with
 - **Dynamic Interface**: Real-time clock and personalized greetings.
 - **Pinned Links**: Quick access to your favorite sites with host-name detection.
 - **Categorized Sections**: Organize your links into custom-named groups.
+- **Layout Control**: Choose how many section cards sit side by side (2–5, or auto-fit).
+- **Foldable Sections**: Collapse individual cards by clicking a header, or fold/unfold every card at once. Expanding is animated.
 - **Modern Design**: A dark-themed, glassmorphic UI built with performance and aesthetics in mind.
 - **Sync With Local Fallback**: Sections are chunked across `chrome.storage.sync` keys so large dashboards keep syncing. If sync is unavailable (quota, signed out), changes fall back to `chrome.storage.local` instead of being lost.
 
@@ -26,8 +28,9 @@ To use this extension in developer mode:
 ## Usage
 
 ### Managing Sections
-- **Add Section**: Click the "Add Section" button at the bottom of the dashboard.
+- **Add Section**: Click the "Section" button next to the search bar.
 - **Edit/Delete**: Hover over a section title to see the edit (✎) and delete (✕) icons.
+- **Fold/Unfold**: Click a section header (or its chevron) to collapse that card. Use the **Fold** button next to search to collapse or expand all cards at once.
 
 ### Pinning Links
 - **Manual Add**: Click "+ Add Link" inside any section to manually enter a name and URL.
@@ -42,7 +45,8 @@ To use this extension in developer mode:
 - **Sync**: Since it uses Chrome Sync, your links will follow you to any computer where you're signed into Chrome.
 
 ### Themes
-- Use the toggle in the top-right corner to switch between **Zen Dark** and **Light Mode**.
+- Use the quick toggle in the top-right corner to switch between **Light Mode** and your most recent dark preset.
+- Open Settings to choose a theme preset and set how many section cards appear per row (**Auto**, or **2–5**).
 
 ## Technology Stack
 

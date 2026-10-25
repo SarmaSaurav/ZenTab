@@ -20,7 +20,9 @@ let settings = {
     showDate: true,
     showGreeting: true,
     bgBlur: 0,
-    bgDim: 30
+    bgDim: 30,
+    cardsPerRow: 'auto',
+    lastDarkTheme: 'dark'
 };
 
 let confirmCallbackYes = null;
@@ -50,6 +52,8 @@ const tabsList = document.getElementById('tabs-list');
 const refreshTabsBtn = document.getElementById('refresh-tabs');
 const searchInput = document.getElementById('search-input');
 const shortcutBadge = document.getElementById('search-shortcut-badge');
+const foldAllBtn = document.getElementById('fold-all-btn');
+const foldAllLabel = document.getElementById('fold-all-label');
 
 // Favicon Helper: Native Chrome Cached Favicon API with Monogram Fallback
 function getFaviconUrl(url, size = 32) {
@@ -557,8 +561,9 @@ function renderSections() {
     const fragment = document.createDocumentFragment();
 
     sections.forEach((section, index) => {
+        const isCollapsed = !!section.collapsed;
         const sectionEl = document.createElement('div');
-        sectionEl.className = 'section-card';
+        sectionEl.className = isCollapsed ? 'section-card collapsed' : 'section-card';
         sectionEl.setAttribute('draggable', 'true');
         sectionEl.dataset.type = 'section';
         sectionEl.dataset.index = index;
@@ -594,6 +599,14 @@ function renderSections() {
         sectionEl.innerHTML = `
             <div class="section-header">
                 <div class="section-title-container">
+                    <button class="section-collapse-btn" type="button" data-action="toggle-section" data-index="${index}"
+                        aria-expanded="${!isCollapsed}"
+                        aria-label="${isCollapsed ? 'Expand' : 'Collapse'} ${escapeHtml(section.name)}"
+                        title="${isCollapsed ? 'Expand' : 'Collapse'} ${escapeHtml(section.name)}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <polyline points="6 9 12 15 18 9"/>
+                        </svg>
+                    </button>
                     <span class="section-icon">${escapeHtml(section.icon || '📁')}</span>
                     <h2 class="section-title" title="${escapeHtml(section.name)}">${escapeHtml(section.name)}</h2>
                 </div>
@@ -611,16 +624,20 @@ function renderSections() {
                     </button>
                 </div>
             </div>
-            <div class="links-list" data-section-index="${index}">
-                ${linksListHtml}
+            <div class="section-body">
+                <div class="section-body-inner">
+                    <div class="links-list" data-section-index="${index}">
+                        ${linksListHtml}
+                    </div>
+                    <button class="btn-add-link" data-action="open-link-modal" data-index="${index}">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M5 12h14"/>
+                            <path d="M12 5v14"/>
+                        </svg>
+                        <span>Add Link</span>
+                    </button>
+                </div>
             </div>
-            <button class="btn-add-link" data-action="open-link-modal" data-index="${index}">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                    <path d="M5 12h14"/>
-                    <path d="M12 5v14"/>
-                </svg>
-                <span>Add Link</span>
-            </button>
         `;
 
         fragment.appendChild(sectionEl);
@@ -630,6 +647,52 @@ function renderSections() {
     sectionsContainer.appendChild(fragment);
 
     setupDragAndDrop();
+    updateFoldAllButton();
+}
+
+function setSectionCollapsed(index, collapsed, persist = true) {
+    const section = sections[index];
+    if (!section) return;
+
+    section.collapsed = collapsed;
+
+    const card = sectionsContainer
+        ? sectionsContainer.querySelector(`.section-card[data-index="${index}"]`)
+        : null;
+
+    if (card) {
+        card.classList.toggle('collapsed', collapsed);
+        const toggle = card.querySelector('.section-collapse-btn');
+        if (toggle) {
+            const label = `${collapsed ? 'Expand' : 'Collapse'} ${section.name || 'section'}`;
+            toggle.setAttribute('aria-expanded', String(!collapsed));
+            toggle.setAttribute('aria-label', label);
+            toggle.title = label;
+        }
+    }
+
+    if (persist) {
+        saveData();
+        updateFoldAllButton();
+    }
+}
+
+function toggleSectionCollapsed(index) {
+    const section = sections[index];
+    if (!section) return;
+    setSectionCollapsed(index, !section.collapsed);
+}
+
+function updateFoldAllButton() {
+    if (!foldAllBtn) return;
+
+    const allCollapsed = sections.length > 0 && sections.every(s => s.collapsed);
+    const label = allCollapsed ? 'Unfold all sections' : 'Fold all sections';
+
+    foldAllBtn.setAttribute('aria-pressed', String(allCollapsed));
+    foldAllBtn.setAttribute('aria-label', label);
+    foldAllBtn.title = label;
+    if (foldAllLabel) foldAllLabel.textContent = allCollapsed ? 'Unfold' : 'Fold';
 }
 
 function escapeHtml(value) {
@@ -840,11 +903,13 @@ function isInputActive() {
 
 function filterContent(query) {
     if (query.startsWith(':')) {
+        clearSearchExpansion();
         document.querySelectorAll('.section-card').forEach(s => s.style.display = '');
         document.querySelectorAll('.link-item-wrapper').forEach(l => l.style.display = '');
         return;
     }
 
+    const isSearching = query.length > 0;
     const sectionCards = document.querySelectorAll('.section-card');
 
     sectionCards.forEach(section => {
@@ -873,6 +938,19 @@ function filterContent(query) {
         }
 
         section.style.display = hasLinkMatch ? '' : 'none';
+
+        // Keep collapsed sections closed, but reveal matches while searching.
+        if (isSearching && hasLinkMatch) {
+            section.classList.add('force-expanded');
+        } else {
+            section.classList.remove('force-expanded');
+        }
+    });
+}
+
+function clearSearchExpansion() {
+    document.querySelectorAll('.section-card.force-expanded').forEach(section => {
+        section.classList.remove('force-expanded');
     });
 }
 
@@ -916,8 +994,11 @@ function updateTime() {
 function initTheme() {
     if (quickThemeToggle) {
         quickThemeToggle.addEventListener('click', () => {
-            const isLight = document.documentElement.getAttribute('data-theme') === 'light';
-            const nextTheme = isLight ? (currentTheme === 'light' ? 'dark' : currentTheme) : 'light';
+            // Toggle between light and the last dark preset the user picked.
+            const fallbackDark = settings.lastDarkTheme && settings.lastDarkTheme !== 'light'
+                ? settings.lastDarkTheme
+                : 'dark';
+            const nextTheme = currentTheme === 'light' ? fallbackDark : 'light';
             applyTheme(nextTheme, true);
         });
     }
@@ -935,6 +1016,10 @@ function applyTheme(theme, save = true) {
     if (!theme) theme = 'dark';
     currentTheme = theme;
 
+    if (theme !== 'light') {
+        settings.lastDarkTheme = theme;
+    }
+
     if (theme === 'dark') {
         document.documentElement.removeAttribute('data-theme');
     } else {
@@ -949,9 +1034,18 @@ function applyTheme(theme, save = true) {
         }
     });
 
+    if (quickThemeToggle) {
+        const isLight = theme === 'light';
+        const label = isLight ? 'Switch to dark theme' : 'Switch to light theme';
+        quickThemeToggle.setAttribute('aria-label', label);
+        quickThemeToggle.setAttribute('aria-pressed', String(isLight));
+        quickThemeToggle.title = label;
+    }
+
     if (save) {
         localStorage.setItem('zenTabTheme', theme);
-        queueSyncSave();
+        // Also persists lastDarkTheme, so the quick toggle can restore it.
+        saveSettings();
     }
 }
 
@@ -1112,12 +1206,31 @@ function selectIconInPicker(icon) {
 }
 
 // Settings and Customization
+const CARD_COLUMN_OPTIONS = ['auto', '2', '3', '4', '5'];
+
+function normalizeCardsPerRow(value) {
+    const normalized = String(value);
+    return CARD_COLUMN_OPTIONS.includes(normalized) ? normalized : 'auto';
+}
+
+function applyGridColumns() {
+    if (!sectionsContainer) return;
+
+    const columns = normalizeCardsPerRow(settings.cardsPerRow);
+    if (columns === 'auto') {
+        sectionsContainer.removeAttribute('data-columns');
+    } else {
+        sectionsContainer.setAttribute('data-columns', columns);
+    }
+}
+
 function initSettings() {
     const settingsBtn = document.getElementById('settings-toggle');
     const closeSettings = document.getElementById('close-settings-btn');
     const is12HourToggle = document.getElementById('setting-12hour');
     const showDateToggle = document.getElementById('setting-show-date');
     const showGreetingToggle = document.getElementById('setting-show-greeting');
+    const cardsPerRowSelect = document.getElementById('setting-cards-per-row');
 
     const bgUpload = document.getElementById('bg-upload');
     const resetBgBtn = document.getElementById('reset-bg-btn');
@@ -1128,6 +1241,15 @@ function initSettings() {
 
     if (settingsBtn) settingsBtn.addEventListener('click', () => openModal('settings-modal'));
     if (closeSettings) closeSettings.addEventListener('click', () => closeModal('settings-modal'));
+
+    if (cardsPerRowSelect) {
+        cardsPerRowSelect.value = normalizeCardsPerRow(settings.cardsPerRow);
+        cardsPerRowSelect.addEventListener('change', (e) => {
+            settings.cardsPerRow = normalizeCardsPerRow(e.target.value);
+            applyGridColumns();
+            saveSettings();
+        });
+    }
 
     if (is12HourToggle) {
         is12HourToggle.checked = !!settings.is12Hour;
@@ -1247,12 +1369,14 @@ function initSettings() {
     }
 
     applyWallpaperEffects();
+    applyGridColumns();
 }
 
 function applySettingsToUI() {
     const is12HourToggle = document.getElementById('setting-12hour');
     const showDateToggle = document.getElementById('setting-show-date');
     const showGreetingToggle = document.getElementById('setting-show-greeting');
+    const cardsPerRowSelect = document.getElementById('setting-cards-per-row');
     const bgBlurSlider = document.getElementById('bg-blur-slider');
     const bgDimSlider = document.getElementById('bg-dim-slider');
     const bgBlurVal = document.getElementById('bg-blur-val');
@@ -1261,6 +1385,7 @@ function applySettingsToUI() {
     if (is12HourToggle) is12HourToggle.checked = !!settings.is12Hour;
     if (showDateToggle) showDateToggle.checked = settings.showDate !== false;
     if (showGreetingToggle) showGreetingToggle.checked = settings.showGreeting !== false;
+    if (cardsPerRowSelect) cardsPerRowSelect.value = normalizeCardsPerRow(settings.cardsPerRow);
 
     if (bgBlurSlider) {
         bgBlurSlider.value = settings.bgBlur || 0;
@@ -1272,6 +1397,7 @@ function applySettingsToUI() {
     }
 
     applyWallpaperEffects();
+    applyGridColumns();
     updateTime();
 }
 
@@ -1293,6 +1419,17 @@ function applyWallpaperEffects() {
 
 // Event Listeners for CRUD & Modals
 function setupEventListeners() {
+    if (foldAllBtn) {
+        foldAllBtn.addEventListener('click', () => {
+            if (sections.length === 0) return;
+
+            const shouldCollapse = !sections.every(s => s.collapsed);
+            sections.forEach((_, i) => setSectionCollapsed(i, shouldCollapse, false));
+            saveData();
+            updateFoldAllButton();
+        });
+    }
+
     if (addSectionBtn) {
         addSectionBtn.addEventListener('click', () => {
             sectionModalTitle.textContent = 'New Section';
@@ -1425,7 +1562,16 @@ function setupEventListeners() {
 
         sectionsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
-            if (!btn) return;
+            if (!btn) {
+                // Clicking anywhere in the header (except its action buttons)
+                // folds/unfolds the section.
+                const header = e.target.closest('.section-header');
+                if (header && !e.target.closest('.header-actions')) {
+                    const card = header.closest('.section-card');
+                    if (card) toggleSectionCollapsed(card.dataset.index);
+                }
+                return;
+            }
 
             const action = btn.dataset.action;
             const index = btn.dataset.index;
@@ -1434,6 +1580,8 @@ function setupEventListeners() {
                 document.getElementById('link-section-id').value = index;
                 openModal('link-modal');
                 setTimeout(() => document.getElementById('link-name')?.focus(), 50);
+            } else if (action === 'toggle-section') {
+                toggleSectionCollapsed(index);
             } else if (action === 'edit-section') {
                 const section = sections[index];
                 sectionModalTitle.textContent = 'Edit Section';
@@ -1541,7 +1689,9 @@ function normalizeImportedSections(rawSections) {
             ? rawSection.icon.trim().slice(0, 8)
             : getRandomIcon();
 
-        result.push({ name, icon, links });
+        const section = { name, icon, links };
+        if (rawSection.collapsed === true) section.collapsed = true;
+        result.push(section);
     }
 
     return { sections: result, skipped, totalLinks };
@@ -1555,14 +1705,18 @@ function normalizeImportedSettings(rawSettings) {
         showDate: rawSettings.showDate !== false,
         showGreeting: rawSettings.showGreeting !== false,
         bgBlur: clampNumber(rawSettings.bgBlur, 0, 25, 0),
-        bgDim: clampNumber(rawSettings.bgDim, 0, 90, 30)
+        bgDim: clampNumber(rawSettings.bgDim, 0, 90, 30),
+        cardsPerRow: normalizeCardsPerRow(rawSettings.cardsPerRow),
+        lastDarkTheme: (rawSettings.lastDarkTheme !== 'light' && ALLOWED_THEMES.includes(rawSettings.lastDarkTheme))
+            ? rawSettings.lastDarkTheme
+            : 'dark'
     };
 }
 
 function exportData() {
     const version = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest)
         ? chrome.runtime.getManifest().version
-        : '1.5';
+        : '1.6';
 
     const data = JSON.stringify({
         version,
