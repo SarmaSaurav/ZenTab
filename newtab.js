@@ -95,6 +95,150 @@ function isDuplicateUrl(url) {
     );
 }
 
+// ---------------------------------------------------------------------------
+// Storage layer
+// ---------------------------------------------------------------------------
+// Sections are split into chunks so a single storage item never exceeds the
+// 8 KB chrome.storage.sync per-item quota. If sync fails (quota, signed-out,
+// etc.) we fall back to chrome.storage.local instead of silently losing data.
+const SYNC_META_KEY = 'zt_sections_meta';
+const SYNC_CHUNK_PREFIX = 'zt_sections_chunk_';
+const SYNC_CHUNK_BYTES = 7000;
+const SCHEMA_VERSION = 2;
+const SYNC_DEBOUNCE_MS = 400;
+
+const syncStatus = {
+    failed: false,
+    warned: false,
+    timer: null,
+    remoteTimer: null,
+    chunks: 0,
+    lastSectionsJson: '',
+    lastPrefsJson: '',
+    removeLegacy: false
+};
+
+function hasChromeStorage(area) {
+    return typeof chrome !== 'undefined' && chrome.storage && chrome.storage[area];
+}
+
+function chunkStringByBytes(str, maxBytes) {
+    const encoder = new TextEncoder();
+    const chunks = [];
+    let start = 0;
+
+    while (start < str.length) {
+        let end = str.length;
+
+        if (encoder.encode(str.slice(start)).length > maxBytes) {
+            let low = 1;
+            let high = str.length - start;
+
+            while (low < high) {
+                const mid = Math.ceil((low + high) / 2);
+                if (encoder.encode(str.slice(start, start + mid)).length <= maxBytes) {
+                    low = mid;
+                } else {
+                    high = mid - 1;
+                }
+            }
+
+            end = start + low;
+            // Never split a surrogate pair across two storage items.
+            if (end < str.length && /[\uD800-\uDBFF]/.test(str[end - 1])) end += 1;
+        }
+
+        chunks.push(str.slice(start, end));
+        start = end;
+    }
+
+    return chunks.length ? chunks : [''];
+}
+
+function getStoredSections(result) {
+    const meta = result[SYNC_META_KEY];
+    let raw = null;
+    let chunkCount = 0;
+    let fromLegacy = false;
+
+    if (meta && meta.version === SCHEMA_VERSION && Number.isInteger(meta.chunks)) {
+        let json = '';
+        for (let i = 0; i < meta.chunks; i++) {
+            const chunk = result[SYNC_CHUNK_PREFIX + i];
+            if (typeof chunk !== 'string') {
+                json = '';
+                break;
+            }
+            json += chunk;
+        }
+
+        if (json) {
+            try {
+                raw = JSON.parse(json);
+                chunkCount = meta.chunks;
+            } catch (e) {
+                console.warn('ZenTab: could not parse stored sections.', e);
+            }
+        }
+    }
+
+    const hasLegacyValue = Array.isArray(result.sections);
+    if (!raw && hasLegacyValue) {
+        raw = result.sections;
+        fromLegacy = true;
+    }
+
+    return {
+        sections: Array.isArray(raw)
+            ? raw
+                .filter(s => s && typeof s === 'object')
+                .map(s => ({ ...s, icon: s.icon || getRandomIcon() }))
+            : null,
+        chunkCount,
+        legacy: fromLegacy,
+        updated: meta && Number.isFinite(meta.updated) ? meta.updated : 0,
+        theme: typeof result.theme === 'string' ? result.theme : null,
+        settings: result.settings && typeof result.settings === 'object' ? result.settings : null
+    };
+}
+
+function applyLoadedState(state) {
+    let changed = false;
+
+    if (state.sections) {
+        const nextJson = JSON.stringify(state.sections);
+        if (nextJson !== JSON.stringify(sections)) {
+            sections = state.sections;
+            try {
+                localStorage.setItem('zenTabSections', nextJson);
+            } catch (e) {
+                console.warn('LocalStorage save failed:', e);
+            }
+            changed = true;
+        }
+        syncStatus.lastSectionsJson = nextJson;
+    }
+
+    if (state.theme && state.theme !== currentTheme) {
+        applyTheme(state.theme, false);
+        changed = true;
+    }
+
+    if (state.settings) {
+        const merged = { ...settings, ...state.settings };
+        if (JSON.stringify(merged) !== JSON.stringify(settings)) {
+            settings = merged;
+            applySettingsToUI();
+            changed = true;
+        }
+    }
+
+    if (state.chunkCount) syncStatus.chunks = state.chunkCount;
+    syncStatus.lastPrefsJson = JSON.stringify({ theme: currentTheme, settings });
+
+    if (changed) renderSections();
+}
+
 // 0ms Cache-First Data Loading
 function loadInitialCache() {
     try {
@@ -118,34 +262,99 @@ function loadInitialCache() {
 }
 
 function loadData() {
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        chrome.storage.sync.get(['sections', 'theme', 'settings'], (result) => {
-            let changed = false;
-            if (result.sections) {
-                sections = result.sections.map(s => ({
-                    ...s,
-                    icon: s.icon || getRandomIcon()
-                }));
-                localStorage.setItem('zenTabSections', JSON.stringify(sections));
-                changed = true;
-            }
-            if (result.theme) {
-                applyTheme(result.theme, false);
-            }
-            if (result.settings) {
-                settings = { ...settings, ...result.settings };
-                applySettingsToUI();
-            }
-            if (changed) renderSections();
-        });
-    } else {
+    if (!hasChromeStorage('sync')) {
         if (!sections || sections.length === 0) {
             const saved = localStorage.getItem('zenTabSections');
             sections = saved ? JSON.parse(saved) : getDefaultSections();
             saveData();
             renderSections();
         }
+        return;
     }
+
+    chrome.storage.sync.get(null, (result) => {
+        if (chrome.runtime.lastError) {
+            loadFromArea('local');
+            return;
+        }
+
+        const state = getStoredSections(result);
+        if (!state.sections) {
+            loadFromArea('local');
+            return;
+        }
+
+        // Clean up the pre-1.5 single-item key once valid v2 data exists.
+        if (!state.legacy && Object.prototype.hasOwnProperty.call(result, 'sections')) {
+            chrome.storage.sync.remove('sections', () => { void chrome.runtime.lastError; });
+        }
+
+        // The local fallback may be newer than sync (e.g. after a quota
+        // failure), so prefer it when its timestamp is more recent.
+        if (hasChromeStorage('local')) {
+            chrome.storage.local.get(SYNC_META_KEY, (localResult) => {
+                const localMeta = !chrome.runtime.lastError && localResult
+                    ? localResult[SYNC_META_KEY]
+                    : null;
+
+                if (localMeta && Number.isFinite(localMeta.updated) && localMeta.updated > state.updated) {
+                    loadFromArea('local');
+                    return;
+                }
+
+                finishSyncLoad(state);
+            });
+            return;
+        }
+
+        finishSyncLoad(state);
+    });
+}
+
+function finishSyncLoad(state) {
+    applyLoadedState(state);
+    if (state.legacy) {
+        // Migrate the legacy single-item layout to chunked v2 keys.
+        syncStatus.lastSectionsJson = '';
+        syncStatus.removeLegacy = true;
+        queueSyncSave();
+    }
+}
+
+function loadFromArea(area) {
+    if (!hasChromeStorage(area)) {
+        seedDefaultSections();
+        return;
+    }
+
+    chrome.storage[area].get(null, (result) => {
+        if (chrome.runtime.lastError) {
+            seedDefaultSections();
+            return;
+        }
+
+        const state = getStoredSections(result);
+        if (state.sections) {
+            applyLoadedState(state);
+            if (area !== 'sync' && !syncStatus.failed) {
+                // Data only exists in the local fallback; try to restore sync.
+                syncStatus.lastSectionsJson = '';
+                queueSyncSave();
+            }
+            return;
+        }
+
+        seedDefaultSections();
+    });
+}
+
+function seedDefaultSections() {
+    if (sections.length === 0) {
+        sections = getDefaultSections();
+        renderSections();
+    }
+    syncStatus.lastSectionsJson = '';
+    queueSyncSave();
 }
 
 function getDefaultSections() {
@@ -172,15 +381,14 @@ function getDefaultSections() {
 }
 
 function saveData() {
+    const json = JSON.stringify(sections);
     try {
-        localStorage.setItem('zenTabSections', JSON.stringify(sections));
+        localStorage.setItem('zenTabSections', json);
     } catch (e) {
         console.warn('LocalStorage save failed:', e);
     }
 
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        chrome.storage.sync.set({ sections });
-    }
+    queueSyncSave();
 }
 
 function saveSettings() {
@@ -190,9 +398,156 @@ function saveSettings() {
         console.warn('LocalStorage settings save failed:', e);
     }
 
-    if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-        chrome.storage.sync.set({ settings });
+    queueSyncSave();
+}
+
+function queueSyncSave() {
+    if (syncStatus.timer) clearTimeout(syncStatus.timer);
+    syncStatus.timer = setTimeout(() => {
+        syncStatus.timer = null;
+        flushSyncSave();
+    }, SYNC_DEBOUNCE_MS);
+}
+
+function notifySyncFailure() {
+    if (syncStatus.warned) return;
+    syncStatus.warned = true;
+    showToast('Could not sync to your Chrome account. Changes are saved on this device.', 'error');
+}
+
+function writeToArea(area, payload, done) {
+    try {
+        chrome.storage[area].set(payload, () => {
+            done(chrome.runtime.lastError || null);
+        });
+    } catch (e) {
+        done(e);
     }
+}
+
+function commitSyncWrite(area, sectionsJson, prefsJson, chunkCount) {
+    syncStatus.lastSectionsJson = sectionsJson;
+    syncStatus.lastPrefsJson = prefsJson;
+
+    if (chunkCount !== null) {
+        const staleKeys = [];
+        for (let i = chunkCount; i < syncStatus.chunks; i++) {
+            staleKeys.push(SYNC_CHUNK_PREFIX + i);
+        }
+        syncStatus.chunks = chunkCount;
+        if (staleKeys.length && hasChromeStorage(area)) {
+            chrome.storage[area].remove(staleKeys, () => { void chrome.runtime.lastError; });
+        }
+    }
+
+    if (syncStatus.removeLegacy && hasChromeStorage('sync')) {
+        chrome.storage.sync.remove('sections', () => { void chrome.runtime.lastError; });
+        syncStatus.removeLegacy = false;
+    }
+}
+
+function finishSyncWrite(area, sectionsJson, prefsJson, chunkCount) {
+    commitSyncWrite(area, sectionsJson, prefsJson, chunkCount);
+
+    // Edits made while the write was in flight still need persisting.
+    const currentSectionsJson = JSON.stringify(sections);
+    const currentPrefsJson = JSON.stringify({ theme: currentTheme, settings });
+    if (currentSectionsJson !== sectionsJson || currentPrefsJson !== prefsJson) {
+        queueSyncSave();
+    }
+}
+
+function flushSyncSave() {
+    if (!hasChromeStorage('sync') && !hasChromeStorage('local')) return;
+
+    const sectionsJson = JSON.stringify(sections);
+    const prefsJson = JSON.stringify({ theme: currentTheme, settings });
+    const payload = {};
+    let chunkCount = null;
+
+    if (sectionsJson !== syncStatus.lastSectionsJson) {
+        const chunks = chunkStringByBytes(sectionsJson, SYNC_CHUNK_BYTES);
+        chunks.forEach((chunk, i) => {
+            payload[SYNC_CHUNK_PREFIX + i] = chunk;
+        });
+        payload[SYNC_META_KEY] = {
+            version: SCHEMA_VERSION,
+            chunks: chunks.length,
+            updated: Date.now()
+        };
+        chunkCount = chunks.length;
+    }
+
+    if (prefsJson !== syncStatus.lastPrefsJson) {
+        payload.theme = currentTheme;
+        payload.settings = settings;
+    }
+
+    if (Object.keys(payload).length === 0) return;
+
+    if (!syncStatus.failed && hasChromeStorage('sync')) {
+        writeToArea('sync', payload, (err) => {
+            if (!err) {
+                finishSyncWrite('sync', sectionsJson, prefsJson, chunkCount);
+                return;
+            }
+
+            console.warn('ZenTab: sync write failed, falling back to local storage.', err);
+            syncStatus.failed = true;
+            writeToArea('local', payload, (localErr) => {
+                if (!localErr) finishSyncWrite('local', sectionsJson, prefsJson, chunkCount);
+                notifySyncFailure();
+            });
+        });
+        return;
+    }
+
+    if (hasChromeStorage('local')) {
+        writeToArea('local', payload, (err) => {
+            if (!err) {
+                finishSyncWrite('local', sectionsJson, prefsJson, chunkCount);
+            } else {
+                notifySyncFailure();
+            }
+        });
+    }
+}
+
+function applyRemoteArea(area) {
+    if (!hasChromeStorage(area)) return;
+
+    chrome.storage[area].get(null, (result) => {
+        if (chrome.runtime.lastError) return;
+        applyLoadedState(getStoredSections(result));
+    });
+}
+
+function initStorageListener() {
+    if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.onChanged) return;
+
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area !== 'sync' && area !== 'local') return;
+        if (area === 'local' && !syncStatus.failed) return;
+
+        // Do not let an incoming change overwrite local edits that have not
+        // been written yet. Last write wins once our save completes.
+        if (syncStatus.timer) return;
+
+        const relevant = Object.keys(changes).some(key =>
+            key === SYNC_META_KEY ||
+            key.startsWith(SYNC_CHUNK_PREFIX) ||
+            key === 'sections' ||
+            key === 'theme' ||
+            key === 'settings'
+        );
+        if (!relevant) return;
+
+        if (syncStatus.remoteTimer) clearTimeout(syncStatus.remoteTimer);
+        syncStatus.remoteTimer = setTimeout(() => {
+            syncStatus.remoteTimer = null;
+            applyRemoteArea(area);
+        }, 200);
+    });
 }
 
 // High-Performance DocumentFragment Rendering
@@ -223,9 +578,8 @@ function renderSections() {
                 <div class="link-item-wrapper" draggable="true" data-type="link" data-section="${index}" data-link="${linkIndex}">
                     <a href="${escapeHtml(link.url)}" class="link-item" title="${escapeHtml(link.name)} (${escapeHtml(hostname)})">
                         <div class="link-favicon-wrap">
-                            <img src="${escapeHtml(faviconUrl)}" class="link-favicon" alt="" loading="lazy"
-                                onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';">
-                            <div class="favicon-monogram" style="${monogram.style} display: none;">${monogram.initial}</div>
+                            <img src="${escapeHtml(faviconUrl)}" class="link-favicon" alt="" loading="lazy">
+                            <div class="favicon-monogram" style="${monogram.style} display: none;">${escapeHtml(monogram.initial)}</div>
                         </div>
                         <div class="link-info">
                             <span class="link-name">${escapeHtml(link.name)}</span>
@@ -240,7 +594,7 @@ function renderSections() {
         sectionEl.innerHTML = `
             <div class="section-header">
                 <div class="section-title-container">
-                    <span class="section-icon">${section.icon || '📁'}</span>
+                    <span class="section-icon">${escapeHtml(section.icon || '📁')}</span>
                     <h2 class="section-title" title="${escapeHtml(section.name)}">${escapeHtml(section.name)}</h2>
                 </div>
                 <div class="header-actions">
@@ -278,9 +632,9 @@ function renderSections() {
     setupDragAndDrop();
 }
 
-function escapeHtml(str) {
-    if (!str) return '';
-    return str
+function escapeHtml(value) {
+    if (value === null || value === undefined) return '';
+    return String(value)
         .replace(/&/g, "&amp;")
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
@@ -597,9 +951,7 @@ function applyTheme(theme, save = true) {
 
     if (save) {
         localStorage.setItem('zenTabTheme', theme);
-        if (typeof chrome !== 'undefined' && chrome.storage && chrome.storage.sync) {
-            chrome.storage.sync.set({ theme });
-        }
+        queueSyncSave();
     }
 }
 
@@ -870,6 +1222,8 @@ function initSettings() {
         importInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
             if (file) importData(file);
+            // Allow importing the same file again later.
+            e.target.value = '';
         });
     }
 
@@ -1056,6 +1410,19 @@ function setupEventListeners() {
     document.getElementById('cancel-tab-picker-btn')?.addEventListener('click', () => closeModal('tab-picker-modal'));
 
     if (sectionsContainer) {
+        // Inline onerror handlers are blocked by the MV3 CSP, so the favicon
+        // fallback is handled here instead (error events do not bubble).
+        sectionsContainer.addEventListener('error', (e) => {
+            const img = e.target;
+            if (!(img instanceof HTMLImageElement) || !img.classList.contains('link-favicon')) return;
+
+            img.style.display = 'none';
+            const monogram = img.nextElementSibling;
+            if (monogram && monogram.classList.contains('favicon-monogram')) {
+                monogram.style.display = 'flex';
+            }
+        }, true);
+
         sectionsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
             if (!btn) return;
@@ -1086,9 +1453,120 @@ function setupEventListeners() {
 }
 
 // Backup Operations
+const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
+const MAX_IMPORT_SECTIONS = 200;
+const MAX_IMPORT_LINKS = 2000;
+const MAX_LINKS_PER_SECTION = 500;
+const ALLOWED_THEMES = ['dark', 'oled', 'cyber', 'sunset', 'nordic', 'light'];
+
+function clampNumber(value, min, max, fallback) {
+    const num = Number(value);
+    if (!Number.isFinite(num)) return fallback;
+    return Math.min(max, Math.max(min, Math.round(num)));
+}
+
+function normalizeUrl(raw) {
+    let value = String(raw ?? '').trim();
+    if (!value) return null;
+
+    if (!/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+        value = 'https://' + value;
+    }
+
+    let parsed;
+    try {
+        parsed = new URL(value);
+    } catch {
+        return null;
+    }
+
+    // Only allow web links; block javascript:, data:, file:, etc.
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+    return parsed.href;
+}
+
+function normalizeImportedSections(rawSections) {
+    const input = Array.isArray(rawSections) ? rawSections : [];
+    const result = [];
+    const seen = new Set();
+    let skipped = 0;
+    let totalLinks = 0;
+
+    for (const rawSection of input.slice(0, MAX_IMPORT_SECTIONS)) {
+        if (!rawSection || typeof rawSection !== 'object') {
+            skipped++;
+            continue;
+        }
+
+        const links = [];
+        const rawLinks = Array.isArray(rawSection.links)
+            ? rawSection.links.slice(0, MAX_LINKS_PER_SECTION)
+            : [];
+
+        for (const rawLink of rawLinks) {
+            if (totalLinks >= MAX_IMPORT_LINKS) break;
+
+            if (!rawLink || typeof rawLink !== 'object') {
+                skipped++;
+                continue;
+            }
+
+            const url = normalizeUrl(rawLink.url);
+            if (!url) {
+                skipped++;
+                continue;
+            }
+
+            const dedupeKey = url.replace(/\/+$/, '').toLowerCase();
+            if (seen.has(dedupeKey)) {
+                skipped++;
+                continue;
+            }
+            seen.add(dedupeKey);
+
+            let fallbackName = url;
+            try {
+                fallbackName = new URL(url).hostname.replace(/^www\./, '');
+            } catch {
+                // Keep the URL as the fallback name.
+            }
+
+            const name = String(rawLink.name ?? '').trim().slice(0, 200) || fallbackName;
+            links.push({ name, url });
+            totalLinks++;
+        }
+
+        const name = String(rawSection.name ?? '').trim().slice(0, 120) || 'Untitled Section';
+        const icon = typeof rawSection.icon === 'string' && rawSection.icon.trim()
+            ? rawSection.icon.trim().slice(0, 8)
+            : getRandomIcon();
+
+        result.push({ name, icon, links });
+    }
+
+    return { sections: result, skipped, totalLinks };
+}
+
+function normalizeImportedSettings(rawSettings) {
+    if (!rawSettings || typeof rawSettings !== 'object') return null;
+
+    return {
+        is12Hour: !!rawSettings.is12Hour,
+        showDate: rawSettings.showDate !== false,
+        showGreeting: rawSettings.showGreeting !== false,
+        bgBlur: clampNumber(rawSettings.bgBlur, 0, 25, 0),
+        bgDim: clampNumber(rawSettings.bgDim, 0, 90, 30)
+    };
+}
+
 function exportData() {
+    const version = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest)
+        ? chrome.runtime.getManifest().version
+        : '1.5';
+
     const data = JSON.stringify({
-        version: '1.4',
+        version,
+        schemaVersion: SCHEMA_VERSION,
         exportDate: new Date().toISOString(),
         sections,
         settings,
@@ -1110,34 +1588,67 @@ function exportData() {
 }
 
 function importData(file) {
+    if (!file) return;
+
+    if (file.size > MAX_IMPORT_BYTES) {
+        showToast('Backup is too large (max 2 MB).', 'error');
+        return;
+    }
+
     const reader = new FileReader();
     reader.onload = (e) => {
+        let imported;
         try {
-            const imported = JSON.parse(e.target.result);
-            const importedSections = Array.isArray(imported) ? imported : imported.sections;
-
-            if (Array.isArray(importedSections)) {
-                showConfirm('Importing will replace your current sections. Continue?', () => {
-                    sections = importedSections.map(s => ({
-                        ...s,
-                        icon: s.icon || getRandomIcon()
-                    }));
-                    if (imported.settings) settings = { ...settings, ...imported.settings };
-                    if (imported.theme) applyTheme(imported.theme, true);
-
-                    saveData();
-                    saveSettings();
-                    applySettingsToUI();
-                    renderSections();
-                    showToast('Backup restored successfully!', 'success');
-                });
-            } else {
-                showToast('Invalid backup file structure.', 'error');
-            }
+            imported = JSON.parse(e.target.result);
         } catch {
             showToast('Error parsing JSON backup file.', 'error');
+            return;
         }
+
+        const rawSections = Array.isArray(imported)
+            ? imported
+            : (imported && imported.sections);
+
+        if (!Array.isArray(rawSections)) {
+            showToast('Invalid backup file structure.', 'error');
+            return;
+        }
+
+        const normalized = normalizeImportedSections(rawSections);
+        if (normalized.sections.length === 0) {
+            showToast('No valid sections or links found in this backup.', 'error');
+            return;
+        }
+
+        const summary = `${normalized.sections.length} section(s)` +
+            (normalized.totalLinks ? ` and ${normalized.totalLinks} link(s)` : '') +
+            (normalized.skipped
+                ? ` (${normalized.skipped} invalid ${normalized.skipped === 1 ? 'entry' : 'entries'} will be skipped)`
+                : '');
+
+        showConfirm(`Import ${summary}? This will replace your current sections.`, () => {
+            sections = normalized.sections;
+
+            const importedSettings = normalizeImportedSettings(imported && imported.settings);
+            if (importedSettings) settings = importedSettings;
+
+            if (imported && ALLOWED_THEMES.includes(imported.theme)) {
+                applyTheme(imported.theme, true);
+            }
+
+            saveData();
+            saveSettings();
+            applySettingsToUI();
+            renderSections();
+            showToast(
+                normalized.skipped
+                    ? `Backup restored, ${normalized.skipped} invalid entries skipped.`
+                    : 'Backup restored successfully!',
+                normalized.skipped ? 'info' : 'success'
+            );
+        });
     };
+    reader.onerror = () => showToast('Could not read the backup file.', 'error');
     reader.readAsText(file);
 }
 
@@ -1215,6 +1726,7 @@ function init() {
     loadInitialCache();
     updateTime();
     setInterval(updateTime, 1000);
+    initStorageListener();
     loadData();
     setupEventListeners();
     renderIconPicker();
@@ -1222,6 +1734,14 @@ function init() {
     initSidebar();
     initSearch();
     initSettings();
+
+    // Flush debounced writes before the new tab page is discarded.
+    window.addEventListener('pagehide', () => {
+        if (!syncStatus.timer) return;
+        clearTimeout(syncStatus.timer);
+        syncStatus.timer = null;
+        flushSyncSave();
+    });
 }
 
 // Run immediately

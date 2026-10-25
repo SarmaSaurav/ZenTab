@@ -10,7 +10,7 @@ A premium, minimal Chrome extension that replaces your default New Tab page with
 - **Pinned Links**: Quick access to your favorite sites with host-name detection.
 - **Categorized Sections**: Organize your links into custom-named groups.
 - **Modern Design**: A dark-themed, glassmorphic UI built with performance and aesthetics in mind.
-- **Offline First**: All data is stored locally using `chrome.storage.sync`.
+- **Sync With Local Fallback**: Sections are chunked across `chrome.storage.sync` keys so large dashboards keep syncing. If sync is unavailable (quota, signed out), changes fall back to `chrome.storage.local` instead of being lost.
 
 ## Installation
 
@@ -38,7 +38,7 @@ To use this extension in developer mode:
 
 ### Backup and Sync
 - **Export**: Use "Export Backup" to save your dashboard layout to a JSON file.
-- **Import**: Use "Import Backup" to restore your links from a previous backup.
+- **Import**: Use "Import Backup" to restore your links from a previous backup. Imports are validated: non-web URLs, duplicate links, and malformed entries are skipped.
 - **Sync**: Since it uses Chrome Sync, your links will follow you to any computer where you're signed into Chrome.
 
 ### Themes
