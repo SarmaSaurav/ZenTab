@@ -1417,6 +1417,136 @@ function applyWallpaperEffects() {
     }
 }
 
+// Hover preview for link cards
+function initLinkPreview() {
+    const preview = document.getElementById('link-preview');
+    if (!preview || !sectionsContainer) return;
+
+    const domainEl = preview.querySelector('.link-preview-domain');
+    const nameEl = preview.querySelector('.link-preview-name');
+    const urlEl = preview.querySelector('.link-preview-url');
+    const iconEl = preview.querySelector('.link-preview-favicon');
+    const monogramEl = preview.querySelector('.link-preview-monogram');
+
+    let showTimer = null;
+    let hideTimer = null;
+    let activeLink = null;
+
+    const hide = () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+        activeLink = null;
+        preview.classList.remove('visible');
+    };
+
+    const show = (link) => {
+        const wrapper = link.closest('.link-item-wrapper');
+        if (!wrapper) return;
+
+        const section = sections[Number(wrapper.dataset.section)];
+        const item = section && section.links && section.links[Number(wrapper.dataset.link)];
+        if (!item) return;
+
+        let hostname = item.url;
+        try {
+            hostname = new URL(item.url).hostname.replace(/^www\./, '');
+        } catch {
+            // Keep the raw URL as a fallback.
+        }
+
+        const monogram = getMonogram(item.name, item.url);
+
+        domainEl.textContent = hostname;
+        nameEl.textContent = item.name;
+        urlEl.textContent = item.url;
+
+        iconEl.style.display = '';
+        iconEl.removeAttribute('src');
+        iconEl.src = getFaviconUrl(item.url, 64);
+
+        monogramEl.textContent = monogram.initial;
+        monogramEl.style.cssText = `${monogram.style} display: none;`;
+
+        activeLink = link;
+        preview.classList.add('visible');
+
+        const rect = link.getBoundingClientRect();
+        const previewWidth = preview.offsetWidth;
+        const previewHeight = preview.offsetHeight;
+        const gap = 12;
+        let left = rect.right + gap;
+        let origin = 'left center';
+
+        if (left + previewWidth > window.innerWidth - 12) {
+            left = rect.left - previewWidth - gap;
+            origin = 'right center';
+        }
+
+        if (left < 12) {
+            left = Math.min(Math.max(12, rect.left), window.innerWidth - previewWidth - 12);
+            origin = 'center center';
+        }
+
+        let top = rect.top + (rect.height - previewHeight) / 2;
+        top = Math.max(12, Math.min(top, window.innerHeight - previewHeight - 12));
+
+        preview.style.transformOrigin = origin;
+        preview.style.left = `${Math.round(left)}px`;
+        preview.style.top = `${Math.round(top)}px`;
+    };
+
+    const scheduleShow = (link) => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+        showTimer = setTimeout(() => show(link), 140);
+    };
+
+    const scheduleHide = () => {
+        clearTimeout(showTimer);
+        clearTimeout(hideTimer);
+        hideTimer = setTimeout(hide, 240);
+    };
+
+    preview.addEventListener('error', (e) => {
+        const img = e.target;
+        if (!(img instanceof HTMLImageElement) || !img.classList.contains('link-preview-favicon')) return;
+
+        img.style.display = 'none';
+        monogramEl.style.display = 'flex';
+    }, true);
+
+    if (window.matchMedia && window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+        sectionsContainer.addEventListener('mouseover', (e) => {
+            const link = e.target.closest('.link-item');
+            if (!link || link === activeLink) return;
+
+            scheduleShow(link);
+        });
+
+        sectionsContainer.addEventListener('mouseout', (e) => {
+            const link = e.target.closest('.link-item');
+            if (!link) return;
+
+            if (e.relatedTarget && link.contains(e.relatedTarget)) return;
+
+            scheduleHide();
+        });
+    }
+
+    sectionsContainer.addEventListener('focusin', (e) => {
+        const link = e.target.closest('.link-item');
+        if (link && link.matches(':focus-visible')) show(link);
+    });
+
+    sectionsContainer.addEventListener('focusout', (e) => {
+        if (e.target.closest('.link-item')) scheduleHide();
+    });
+
+    window.addEventListener('scroll', hide, true);
+    window.addEventListener('resize', hide);
+    window.addEventListener('blur', hide);
+}
+
 // Event Listeners for CRUD & Modals
 function setupEventListeners() {
     if (foldAllBtn) {
@@ -1559,7 +1689,6 @@ function setupEventListeners() {
                 monogram.style.display = 'flex';
             }
         }, true);
-
         sectionsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('[data-action]');
             if (!btn) {
@@ -1598,6 +1727,8 @@ function setupEventListeners() {
             }
         });
     }
+
+    initLinkPreview();
 }
 
 // Backup Operations
@@ -1605,7 +1736,7 @@ const MAX_IMPORT_BYTES = 2 * 1024 * 1024;
 const MAX_IMPORT_SECTIONS = 200;
 const MAX_IMPORT_LINKS = 2000;
 const MAX_LINKS_PER_SECTION = 500;
-const ALLOWED_THEMES = ['dark', 'oled', 'cyber', 'sunset', 'nordic', 'light'];
+const ALLOWED_THEMES = ['dark', 'oled', 'cyber', 'sunset', 'nordic', 'dracula', 'light'];
 
 function clampNumber(value, min, max, fallback) {
     const num = Number(value);
@@ -1716,7 +1847,7 @@ function normalizeImportedSettings(rawSettings) {
 function exportData() {
     const version = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest)
         ? chrome.runtime.getManifest().version
-        : '1.6';
+        : '1.7';
 
     const data = JSON.stringify({
         version,

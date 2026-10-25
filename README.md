@@ -10,8 +10,9 @@ A premium, minimal Chrome extension that replaces your default New Tab page with
 - **Pinned Links**: Quick access to your favorite sites with host-name detection.
 - **Categorized Sections**: Organize your links into custom-named groups.
 - **Layout Control**: Choose how many section cards sit side by side (2–5, or auto-fit).
-- **Foldable Sections**: Collapse individual cards by clicking a header, or fold/unfold every card at once. Expanding is animated.
-- **Modern Design**: A dark-themed, glassmorphic UI built with performance and aesthetics in mind.
+- **Foldable Sections**: Collapse individual cards by clicking a header, or fold/unfold every card at once from the top-right toolbar.
+- **Link Previews**: Hover a link card (or focus it with the keyboard) to see a quick preview of its name, domain, and full URL.
+- **Modern Design**: A dark-themed, glassmorphic UI with crisp Outfit typography and multiple theme presets, including Dracula.
 - **Sync With Local Fallback**: Sections are chunked across `chrome.storage.sync` keys so large dashboards keep syncing. If sync is unavailable (quota, signed out), changes fall back to `chrome.storage.local` instead of being lost.
 
 ## Installation
@@ -30,7 +31,8 @@ To use this extension in developer mode:
 ### Managing Sections
 - **Add Section**: Click the "Section" button next to the search bar.
 - **Edit/Delete**: Hover over a section title to see the edit (✎) and delete (✕) icons.
-- **Fold/Unfold**: Click a section header (or its chevron) to collapse that card. Use the **Fold** button next to search to collapse or expand all cards at once.
+- **Fold/Unfold**: Click a section header (or its chevron) to collapse that card. Use the **Fold** button in the top-right corner to collapse or expand all cards at once.
+- **Link Preview**: Hover over or keyboard-focus a link to see its name, domain, and full URL in a floating preview.
 
 ### Pinning Links
 - **Manual Add**: Click "+ Add Link" inside any section to manually enter a name and URL.
@@ -46,7 +48,7 @@ To use this extension in developer mode:
 
 ### Themes
 - Use the quick toggle in the top-right corner to switch between **Light Mode** and your most recent dark preset.
-- Open Settings to choose a theme preset and set how many section cards appear per row (**Auto**, or **2–5**).
+- Open Settings to choose a theme preset (including **Dracula**) and set how many section cards appear per row (**Auto**, or **2–5**).
 
 ## Technology Stack
 
@@ -54,6 +56,7 @@ To use this extension in developer mode:
 - **CSS3**: Modern layouts with Flexbox/Grid and custom transitions.
 - **JavaScript**: Pure Vanilla JS for state management and DOM manipulation.
 - **Chrome API**: Manifest V3, storage, and New Tab overrides.
+- **Outfit**: Bundled variable UI font, licensed under the SIL Open Font License (`fonts/Outfit-OFL.txt`).
 
 ## Author
 

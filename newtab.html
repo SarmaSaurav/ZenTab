@@ -23,6 +23,14 @@
         </button>
 
         <div class="top-right-actions">
+            <button id="fold-all-btn" class="btn-glass" title="Fold all sections" aria-label="Fold all sections" aria-pressed="false">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                    <polyline points="4 7 12 15 20 7"/>
+                    <polyline points="4 13 12 21 20 13"/>
+                </svg>
+                <span class="btn-label" id="fold-all-label">Fold</span>
+            </button>
+
             <button id="settings-toggle" class="btn-glass icon-btn" title="Settings" aria-label="Settings">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                     <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/>
@@ -90,13 +98,6 @@
                 <input type="text" id="search-input" placeholder="Search Google or type :yt, :gh, :w, :r, :ddg..." autocomplete="off" spellcheck="false">
                 <div class="search-actions">
                     <kbd class="shortcut-badge" id="search-shortcut-badge">Ctrl K</kbd>
-                    <button id="fold-all-btn" class="btn btn-secondary btn-sm" title="Fold all sections" aria-label="Fold all sections" aria-pressed="false">
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                            <polyline points="4 7 12 15 20 7"/>
-                            <polyline points="4 13 12 21 20 13"/>
-                        </svg>
-                        <span id="fold-all-label">Fold</span>
-                    </button>
                     <button id="add-section-btn" class="btn btn-primary btn-sm">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <path d="M5 12h14"/>
@@ -245,6 +246,10 @@
                             <span class="preset-preview" style="background: linear-gradient(135deg, #0e1726, #1b2a4a, #38bdf8);"></span>
                             <span class="preset-name">Nordic Frost</span>
                         </button>
+                        <button class="theme-preset-card" data-preset="dracula">
+                            <span class="preset-preview" style="background: linear-gradient(135deg, #282a36, #44475a 55%, #bd93f9);"></span>
+                            <span class="preset-name">Dracula</span>
+                        </button>
                         <button class="theme-preset-card" data-preset="light">
                             <span class="preset-preview" style="background: linear-gradient(135deg, #f8fafc, #e2e8f0);"></span>
                             <span class="preset-name">Crisp Light</span>
@@ -265,7 +270,7 @@
                             <option value="5">5</option>
                         </select>
                     </div>
-                    <p class="settings-hint">Auto fits as many cards as the window allows. Click a section header to fold it, or use the Fold button next to search.</p>
+                    <p class="settings-hint">Auto fits as many cards as the window allows. Click a section header to fold it, or use the Fold button in the top-right corner.</p>
                 </div>
 
                 <!-- Clock & Header Options -->
@@ -364,6 +369,32 @@
                 <button id="confirm-cancel-btn" class="btn btn-secondary">Cancel</button>
                 <button id="confirm-yes-btn" class="btn btn-danger">Delete</button>
             </div>
+        </div>
+    </div>
+
+    <div id="link-preview" class="link-preview" aria-hidden="true">
+        <div class="link-preview-bar">
+            <span class="link-preview-dot"></span>
+            <span class="link-preview-dot"></span>
+            <span class="link-preview-dot"></span>
+            <span class="link-preview-domain"></span>
+        </div>
+        <div class="link-preview-body">
+            <div class="link-preview-icon">
+                <img class="link-preview-favicon" alt="" width="28" height="28">
+                <span class="link-preview-monogram"></span>
+            </div>
+            <div class="link-preview-info">
+                <div class="link-preview-name"></div>
+                <div class="link-preview-url"></div>
+            </div>
+        </div>
+        <div class="link-preview-footer">
+            <span>Quick preview</span>
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/>
+                <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/>
+            </svg>
         </div>
     </div>
 
