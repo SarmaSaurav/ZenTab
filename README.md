@@ -2,7 +2,7 @@
 
 A premium, minimal browser extension for Chrome and Firefox that replaces your default New Tab page with a beautiful, productive dashboard.
 
-![ZenTab Preview](icon128.png)
+![ZenTab Showcase](showcase.png)
 
 ## Features
 
