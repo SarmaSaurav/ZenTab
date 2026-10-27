@@ -55,9 +55,22 @@ const shortcutBadge = document.getElementById('search-shortcut-badge');
 const foldAllBtn = document.getElementById('fold-all-btn');
 const foldAllLabel = document.getElementById('fold-all-label');
 
-// Favicon Helper: Native Chrome Cached Favicon API with Monogram Fallback
+// Favicon Helper: Native Chrome cached favicon API where available,
+// otherwise the remote icon service with a monogram fallback.
+const NATIVE_FAVICON_SUPPORTED = (() => {
+    try {
+        if (typeof chrome === 'undefined' || !chrome.runtime || typeof chrome.runtime.getManifest !== 'function') {
+            return false;
+        }
+        const permissions = chrome.runtime.getManifest().permissions;
+        return Array.isArray(permissions) && permissions.includes('favicon');
+    } catch {
+        return false;
+    }
+})();
+
 function getFaviconUrl(url, size = 32) {
-    if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getURL) {
+    if (NATIVE_FAVICON_SUPPORTED && chrome.runtime && chrome.runtime.getURL) {
         try {
             const faviconUrl = new URL(chrome.runtime.getURL('/_favicon/'));
             faviconUrl.searchParams.set('pageUrl', url);
@@ -416,7 +429,7 @@ function queueSyncSave() {
 function notifySyncFailure() {
     if (syncStatus.warned) return;
     syncStatus.warned = true;
-    showToast('Could not sync to your Chrome account. Changes are saved on this device.', 'error');
+    showToast('Could not sync to your browser account. Changes are saved on this device.', 'error');
 }
 
 function writeToArea(area, payload, done) {
@@ -603,25 +616,28 @@ function renderSections() {
                         aria-expanded="${!isCollapsed}"
                         aria-label="${isCollapsed ? 'Expand' : 'Collapse'} ${escapeHtml(section.name)}"
                         title="${isCollapsed ? 'Expand' : 'Collapse'} ${escapeHtml(section.name)}">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.75" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="6 9 12 15 18 9"/>
                         </svg>
                     </button>
                     <span class="section-icon">${escapeHtml(section.icon || '📁')}</span>
                     <h2 class="section-title" title="${escapeHtml(section.name)}">${escapeHtml(section.name)}</h2>
                 </div>
-                <div class="header-actions">
-                    <button class="action-icon-btn" data-action="edit-section" data-index="${index}" title="Edit Section">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
-                        </svg>
-                    </button>
-                    <button class="action-icon-btn btn-delete" data-action="delete-section" data-index="${index}" title="Delete Section">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M3 6h18"/>
-                            <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
-                        </svg>
-                    </button>
+                <div class="section-header-end">
+                    <span class="section-link-count" title="${(section.links || []).length} ${(section.links || []).length === 1 ? 'link' : 'links'}">${(section.links || []).length}</span>
+                    <div class="header-actions">
+                        <button class="action-icon-btn" data-action="edit-section" data-index="${index}" title="Edit Section">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+                            </svg>
+                        </button>
+                        <button class="action-icon-btn btn-delete" data-action="delete-section" data-index="${index}" title="Delete Section">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 6h18"/>
+                                <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+                            </svg>
+                        </button>
+                    </div>
                 </div>
             </div>
             <div class="section-body">
@@ -1113,8 +1129,10 @@ function renderTabs(tabs) {
     const filtered = (tabs || []).filter(tab => {
         if (!tab || !tab.url) return false;
         return !tab.url.startsWith('chrome://') &&
+            !tab.url.startsWith('chrome-extension://') &&
             !tab.url.startsWith('edge://') &&
             !tab.url.startsWith('brave://') &&
+            !tab.url.startsWith('moz-extension://') &&
             !tab.url.startsWith('about:');
     });
 
@@ -1847,7 +1865,7 @@ function normalizeImportedSettings(rawSettings) {
 function exportData() {
     const version = (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.getManifest)
         ? chrome.runtime.getManifest().version
-        : '1.7';
+        : '1.8';
 
     const data = JSON.stringify({
         version,

@@ -1,0 +1,34 @@
+{
+  "manifest_version": 3,
+  "name": "ZenTab Dashboard",
+  "short_name": "ZenTab",
+  "version": "1.8",
+  "description": "A premium dashboard for your pinned links and sections.",
+  "author": "Saurav Sarma",
+  "homepage_url": "https://github.com/SarmaSaurav/ZenTab",
+  "permissions": [
+    "storage",
+    "tabs"
+  ],
+  "chrome_url_overrides": {
+    "newtab": "newtab.html"
+  },
+  "icons": {
+    "16": "logos/logo16.png",
+    "32": "logos/logo32.png",
+    "64": "logos/logo64.png",
+    "48": "logos/logo48.png",
+    "128": "logos/logo128.png"
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "zentab@sauravsarma.dev",
+      "strict_min_version": "140.0",
+      "data_collection_permissions": {
+        "required": [
+          "none"
+        ]
+      }
+    }
+  }
+}

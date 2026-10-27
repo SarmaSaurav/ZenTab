@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "ZenTab Dashboard",
   "short_name": "ZenTab",
-  "version": "1.7",
+  "version": "1.8",
   "description": "A premium dashboard for your pinned links and sections.",
   "author": "Saurav Sarma",
   "offline_enabled": true,

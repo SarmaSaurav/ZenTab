@@ -1,6 +1,6 @@
 # ZenTab Dashboard
 
-A premium, minimal Chrome extension that replaces your default New Tab page with a beautiful, productive dashboard.
+A premium, minimal browser extension for Chrome and Firefox that replaces your default New Tab page with a beautiful, productive dashboard.
 
 ![ZenTab Preview](icon128.png)
 
@@ -12,10 +12,12 @@ A premium, minimal Chrome extension that replaces your default New Tab page with
 - **Layout Control**: Choose how many section cards sit side by side (2–5, or auto-fit).
 - **Foldable Sections**: Collapse individual cards by clicking a header, or fold/unfold every card at once from the top-right toolbar.
 - **Link Previews**: Hover a link card (or focus it with the keyboard) to see a quick preview of its name, domain, and full URL.
-- **Modern Design**: A dark-themed, glassmorphic UI with crisp Outfit typography and multiple theme presets, including Dracula.
-- **Sync With Local Fallback**: Sections are chunked across `chrome.storage.sync` keys so large dashboards keep syncing. If sync is unavailable (quota, signed out), changes fall back to `chrome.storage.local` instead of being lost.
+- **Modern Design**: A dark-themed, glassmorphic UI with crisp Space Grotesk typography and multiple theme presets, including Dracula.
+- **Sync With Local Fallback**: Sections are chunked across the browser's sync storage keys so large dashboards keep syncing. If sync is unavailable (quota, signed out), changes fall back to local storage instead of being lost.
 
 ## Installation
+
+### Chrome
 
 To use this extension in developer mode:
 
@@ -25,6 +27,27 @@ To use this extension in developer mode:
 4. Turn on **Developer mode** (the toggle in the top right).
 5. Click the **Load unpacked** button.
 6. Select the folder containing this extension's files.
+
+### Firefox
+
+Firefox uses a separate manifest, so build the Firefox package before loading it:
+
+1. Clone or download this repository.
+2. From the project folder, run:
+
+   ```bash
+   ./build-firefox.sh
+   ```
+
+   This creates `dist/firefox/` and, when `zip` is available, `dist/zentab-firefox.zip`. On Windows, run the script with Git Bash or WSL.
+3. Open Firefox and navigate to `about:debugging#/runtime/this-firefox`.
+4. Click **Load Temporary Add-on…**.
+5. Select `dist/firefox/manifest.json`.
+6. Open a new tab.
+
+Temporary add-ons are removed when Firefox closes. For a permanent installation, submit `dist/zentab-firefox.zip` to [addons.mozilla.org](https://addons.mozilla.org/developers/) for signing, then install the signed `.xpi`.
+
+Firefox doesn't expose Chrome's native cached favicon API, so Firefox builds fetch favicons through the fallback icon service (or show a monogram when offline). Chrome continues to use its native cached favicons.
 
 ## Usage
 
@@ -44,7 +67,7 @@ To use this extension in developer mode:
 ### Backup and Sync
 - **Export**: Use "Export Backup" to save your dashboard layout to a JSON file.
 - **Import**: Use "Import Backup" to restore your links from a previous backup. Imports are validated: non-web URLs, duplicate links, and malformed entries are skipped.
-- **Sync**: Since it uses Chrome Sync, your links will follow you to any computer where you're signed into Chrome.
+- **Sync**: Uses Chrome Sync or Firefox Sync, so your links follow you wherever you are signed into your browser. If sync is unavailable, changes are saved locally.
 
 ### Themes
 - Use the quick toggle in the top-right corner to switch between **Light Mode** and your most recent dark preset.
@@ -55,8 +78,9 @@ To use this extension in developer mode:
 - **HTML5**: Semantic structure.
 - **CSS3**: Modern layouts with Flexbox/Grid and custom transitions.
 - **JavaScript**: Pure Vanilla JS for state management and DOM manipulation.
-- **Chrome API**: Manifest V3, storage, and New Tab overrides.
-- **Outfit**: Bundled variable UI font, licensed under the SIL Open Font License (`fonts/Outfit-OFL.txt`).
+- **WebExtension APIs**: Manifest V3 with storage, tabs, and New Tab overrides on Chrome and Firefox.
+- **Build**: `manifest.firefox.json` plus `build-firefox.sh` produce a Firefox-loadable package without duplicating the source files.
+- **Space Grotesk**: Bundled variable UI font, licensed under the SIL Open Font License (`fonts/SpaceGrotesk-OFL.txt`), with Outfit fallback (`fonts/Outfit-OFL.txt`).
 
 ## Author
 
